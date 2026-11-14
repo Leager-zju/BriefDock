@@ -1,7 +1,7 @@
 // Explicit actual-WebView verification; never selected by the feature unit runner.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ delete env.LAZYBUDDY_PROTOTYPE_CLIP;
 if(!existsSync(path.join(path.dirname(exe),'sample.mp4')))env.LAZYBUDDY_PROTOTYPE_CLIP=path.join(root,'target/qa-web-shell/sample.mp4');
 const child=spawn(exe,[],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});
 let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
-let browser,page;
+let browser,page,outcome,reportFile;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(predicate,ms=20000){const deadline=Date.now()+ms;while(Date.now()<deadline){if(await predicate())return;await delay(100);}throw Error('prototype condition timeout');}
 function metrics(pid){return JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(here,'process-metrics.ps1'),'-RootProcessId',String(pid)],{encoding:'utf8',windowsHide:true}));}
@@ -54,8 +54,7 @@ try{
   await invoke('resize',{width:780,height:540});
   if(process.argv.includes('--news-only')){
     const report={passed:true,actual_webview:true,window:[780,540],items_without_scrolling:30,narrow_window:[460,540],narrow_items_without_scrolling:20,independent_follow_filter:true};
-    await writeFile(path.join(output,'compact-news.json'),JSON.stringify(report,null,2));
-    console.log(JSON.stringify(report));
+    outcome=report;reportFile='compact-news.json';
   }else{
   // Repeated current-root selection is retained rather than refetched.
   await page.getByLabel('选择功能').selectOption('news');
@@ -110,6 +109,7 @@ try{
   const after=await page.evaluate(()=>({time:document.querySelector('video').currentTime,frames:document.querySelector('[data-testid=shell]').dataset.frames}));
   assert.ok(Math.abs(paused.time-after.time)<.1);assert.equal(after.frames,paused.frames);assert.equal((await invoke('snapshot')).feed_requests,before);
   await invoke('window_action',{action:'show'});
+  await page.waitForFunction(()=>document.querySelector('[data-testid=shell]').dataset.visible==='true');
   assert.equal(await page.locator('video').evaluate(video=>video.paused),true);
   await page.getByRole('button',{name:'返回列表',exact:true}).click();
   assert.equal(await page.locator('.media-result').count(),1);
@@ -136,11 +136,18 @@ try{
   const idle=await resourceSample();
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   const report={passed:true,actual_webview:true,frontend_unit_tests:3,rust_unit_tests:3,three_region_shell:true,compact_news_window:[780,540],news_items_without_scrolling:30,followed_sources_independent:true,modules_toggle:true,narrow_settings_unclipped:true,actual_h264_frame:frame,seek_verified:true,resize_keeps_playing:true,hidden_paused:true,minimized_paused:true,hidden_callback_stopped:true,restore_autoplay:false,inactive_page_request_count_unchanged:true,capabilities,idle,hidden,native_d3d12_texture_integrated:false,real_account_tested:false,production_install_changed:false,notes:['HTML video validates browser decoding and CSS overlay only; native GPU texture integration is still a migration gate.','Working-set sum may double-count shared pages. CPU is percent of one logical core over a short sample.']};
-  await writeFile(path.join(output,'desktop.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+  outcome=report;reportFile='desktop.json';
   }
+}catch(error){
+  const state=page?await page.evaluate(()=>({root:document.querySelector('[data-testid=shell]')?.dataset,notice:document.querySelector('.notice')?.textContent,video:document.querySelector('video')?{paused:document.querySelector('video').paused,time:document.querySelector('video').currentTime,ready:document.querySelector('video').readyState,error:document.querySelector('video').error?.code}:null})).catch(()=>null):null;
+  await writeFile(path.join(output,'failure.json'),JSON.stringify({error:String(error),state},null,2));
+  throw error;
 }finally{
   if(page)await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('window_action',{action:'close'})).catch(()=>{});
   if(browser)await browser.close().catch(()=>{});
   if(child.exitCode===null){await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(10000)]);if(child.exitCode===null){child.kill();throw Error('prototype did not exit normally');}}
   if(stderr)await writeFile(path.join(output,'stderr.txt'),stderr);
 }
+await writeFile(path.join(output,reportFile),JSON.stringify(outcome,null,2));
+await rm(path.join(output,'failure.json'),{force:true});
+console.log(JSON.stringify(outcome,null,2));
