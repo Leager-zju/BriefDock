@@ -5,6 +5,7 @@ use std::{ops::Range, path::PathBuf, sync::Mutex};
 use tauri::{Emitter, Manager};
 mod dock;
 mod playback;
+mod tray;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -81,7 +82,7 @@ fn transition(
 fn snapshot(state: tauri::State<Mutex<Model>>, window: tauri::WebviewWindow) -> serde_json::Value {
     let state = state.lock().unwrap();
     serde_json::json!({"view":state.view,"feed_requests":state.feed_requests,
-        "media_route":if playback::enabled(){"browser_service"}else{"browser_h264_sample"},"real_service":playback::enabled()&&std::env::var_os("LAZYBUDDY_BROWSER_FIXTURE_FILE").is_none(), "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
+        "media_route":if playback::enabled(){"browser_service"}else{"browser_h264_sample"},"real_service":playback::enabled()&&std::env::var_os("LAZYBUDDY_BROWSER_FIXTURE_FILE").is_none(), "native_texture_integrated":false,"tray":window.app_handle().tray_by_id("shell").is_some(),"desktop":dock::snapshot(&window)})
 }
 #[tauri::command]
 async fn demo_feed(
@@ -154,17 +155,27 @@ fn show_without_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), String> {
     match action {
-        "hide" => {
+        "hide" | "close" | "minimize" => {
             visibility(&window, false);
-            window.hide().map_err(|_| "hide failed")?;
-        }
-        "minimize" => {
-            visibility(&window, false);
-            window.minimize().map_err(|_| "minimize failed")?;
+            let hwnd = window.hwnd().map_err(|_| "window unavailable")?;
+            // Pair with native no-focus show; Tao still considers the initial window hidden.
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    SW_HIDE, SW_MINIMIZE, ShowWindow,
+                };
+                ShowWindow(
+                    hwnd.0 as _,
+                    if action == "minimize" {
+                        SW_MINIMIZE
+                    } else {
+                        SW_HIDE
+                    },
+                );
+            }
         }
         "show" => show_without_focus(&window)?,
         "expand" => dock::expand(&window).map_err(|_| "expand failed")?,
-        "close" => {
+        "quit" => {
             let Some(completed) = window.state::<playback::State>().shutdown() else {
                 return Ok(());
             };
@@ -301,6 +312,7 @@ fn main() {
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
             dock::attach(&window)?;
+            tray::install(app)?;
             unsafe {
                 // Keep the product's rectangular-window convention.
                 let hwnd = window.hwnd()?;
@@ -324,9 +336,6 @@ fn main() {
                     let _ = window_action("close", webview);
                 }
                 return;
-            }
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                window.app_handle().exit(0);
             }
             if let tauri::WindowEvent::Resized(_) = event {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {

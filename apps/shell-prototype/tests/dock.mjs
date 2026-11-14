@@ -100,7 +100,7 @@ try{
   await writeFile(path.join(output,'dock-failure.json'),JSON.stringify({error:String(error),native:native(),state},null,2));
   throw error;
 }finally{
-  if(page)await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('window_action',{action:'close'})).catch(()=>{});
+  if(page)await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('window_action',{action:'quit'})).catch(()=>{});
   if(browser)await browser.close().catch(()=>{});
   if(child.exitCode===null){await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(10000)]);if(child.exitCode===null){child.kill();throw Error('prototype did not exit normally');}}
 }

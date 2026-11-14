@@ -101,7 +101,7 @@
     finally { if (accepts(view, request)) loading = false; }
   }
   async function action(action: string) {
-    if (action !== 'show') { pause(); await realHongguo?.suspend(action!=='close'); }
+    if (action !== 'show') { pause(); await realHongguo?.suspend(action!=='quit'); }
     try { await call('window_action', { action }); } catch (error) { notice = String(error); }
   }
   function toggleModules() {
@@ -181,7 +181,7 @@
       <button class="icon-button" class:chosen={section === 'settings'} onclick={() => change(root, toggleSection(section, 'settings'))} aria-label="设置" title="设置" aria-pressed={section === 'settings'}><Icon name="settings"/></button>
       <span class="divider"></span>
       <button class="icon-button" aria-label="收起" onclick={() => action('minimize')}><Icon name="minus"/></button>
-      <button class="icon-button close-button" aria-label="关闭原型" onclick={() => action('close')}><Icon name="close"/></button>
+      <button class="icon-button close-button" aria-label="关闭到托盘" title="关闭到托盘" onclick={() => action('close')}><Icon name="close"/></button>
     </nav>
   </header>
 

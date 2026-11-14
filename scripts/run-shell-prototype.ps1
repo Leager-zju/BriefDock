@@ -12,7 +12,7 @@ if($ServicePackages){
         if($manifest.id -ne $id -or !(Test-Path -LiteralPath (Join-Path $ServicePackages "$id/$($manifest.entrypoint)"))){throw "Invalid service package: $id"}
     }
 }
-if(Get-Process -Name lazybuddy-shell-prototype -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $executable }) {throw 'Please close this prototype normally before rebuilding it.'}
+if(Get-Process -Name lazybuddy-shell-prototype -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $executable }) {throw 'Please exit this prototype from its tray menu before rebuilding it; X only hides the window.'}
 $sdk=Join-Path $projectRoot 'target/native-player-sdk/PFiles64/gstreamer/1.0/msvc_x86_64'
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 Push-Location $prototype

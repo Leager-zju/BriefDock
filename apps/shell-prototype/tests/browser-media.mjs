@@ -70,12 +70,12 @@ try{
   await page.getByRole('button',{name:'退出登录',exact:true}).click();
   await page.getByRole('button',{name:'登录',exact:true}).waitFor();
   report={initial,seek,mediaTime,restored,module_back:'content',qr_cancel:true,qr_stopped_in_global_settings:true,account_logout:true,scope:'fixture QR/account workflow and browser resource; no real account or upstream network'};
-  await invoke('window_action',{action:'close'});
+  await invoke('window_action',{action:'quit'});
   await new Promise((resolve,reject)=>{if(child.exitCode!==null)return resolve();const timer=setTimeout(()=>reject(Error('prototype exit timeout')),15000);child.once('exit',()=>{clearTimeout(timer);resolve();});});
   await writeFile(path.join(output,'browser-media.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }catch(error){if(page){console.error(await page.locator('.notice').textContent());await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}throw error;}
 finally{
-  if(child.exitCode===null){if(page)await invoke('window_action',{action:'close'}).catch(()=>{});await delay(1000);if(child.exitCode===null)child.kill();}
+  if(child.exitCode===null){if(page)await invoke('window_action',{action:'quit'}).catch(()=>{});await delay(1000);if(child.exitCode===null)child.kill();}
   await browser?.close().catch(()=>{});
   const resolved=await realpath(profile).catch(()=>null);if(resolved){assert.ok(resolved.startsWith(root+path.sep));await rm(resolved,{recursive:true,force:true,maxRetries:6,retryDelay:300});}
 }
