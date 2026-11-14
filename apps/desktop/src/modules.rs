@@ -34,7 +34,7 @@ impl App {
                     manager
                         .install_from_catalog(&catalog, &id)
                         .map(|_| ())
-                        .map_err(|_| "安装未完全完成，已重新核对功能列表，请重试。".into())
+                        .map_err(|error| format!("安装未完成：{error}。已安装功能保留，请重试。"))
                 })
                 .await
             },

@@ -25,6 +25,19 @@ fn download_agent(timeout: Duration) -> ureq::Agent {
         .new_agent()
 }
 
+fn download_error(resource: &str, error: ureq::Error) -> io::Error {
+    // Do not expose redirect URLs, proxy credentials or arbitrary TLS error text.
+    let reason = match error {
+        ureq::Error::StatusCode(code) => format!("HTTP {code}"),
+        ureq::Error::Timeout(_) => "network timeout".into(),
+        ureq::Error::HostNotFound => "host not found".into(),
+        ureq::Error::ConnectionFailed => "connection failed".into(),
+        ureq::Error::ConnectProxyFailed(_) => "proxy connection failed".into(),
+        _ => "network or TLS error".into(),
+    };
+    invalid(format!("{resource} download failed: {reason}"))
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Catalog {
@@ -118,7 +131,7 @@ pub fn download_catalog(url: &str, public_key: &[u8]) -> io::Result<Catalog> {
         let mut response = download_agent(Duration::from_secs(30))
             .get(url)
             .call()
-            .map_err(|_| invalid("catalog download failed"))?;
+            .map_err(|error| download_error("catalog", error))?;
         let mut bytes = Vec::new();
         response
             .body_mut()
@@ -214,7 +227,7 @@ impl Manager {
             let mut response = download_agent(Duration::from_secs(300))
                 .get(&package.url)
                 .call()
-                .map_err(|_| invalid("package download failed"))?;
+                .map_err(|error| download_error(&package.id, error))?;
             if io::copy(
                 &mut response.body_mut().as_reader().take(package.bytes + 1),
                 &mut file,
@@ -324,6 +337,20 @@ impl Manager {
 mod tests {
     use super::*;
     use ring::signature::{Ed25519KeyPair, KeyPair};
+
+    #[test]
+    fn download_failures_identify_package_without_leaking_proxy_details() {
+        assert_eq!(
+            download_error("media-runtime", ureq::Error::StatusCode(503)).to_string(),
+            "media-runtime download failed: HTTP 503"
+        );
+        let error = download_error(
+            "hongguo",
+            ureq::Error::ConnectProxyFailed("http://user:secret@proxy/?signed=private".into()),
+        )
+        .to_string();
+        assert_eq!(error, "hongguo download failed: proxy connection failed");
+    }
 
     #[test]
     fn https_with_untrusted_peer_returns_error_without_panicking() {

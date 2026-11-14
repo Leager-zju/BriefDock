@@ -11,4 +11,4 @@ serde = { version = "1", features = ["derive"] }
 ring = "0.17"
 sha2 = "0.10"
 zip = { version = "8.6", default-features = false, features = ["deflate"] }
-ureq = { version = "3.5", default-features = false, features = ["native-tls"] }
+ureq = { version = "3.5", default-features = false, features = ["native-tls", "win-system-proxy"] }

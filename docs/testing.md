@@ -22,3 +22,5 @@
 已核实的历史资源/媒体证据见modular-architecture.md与media-runtime.md，其中旧文件位置只表示当时源码布局，不作为当前构建入口。不得cargo clean或清空target，已初始化的独立Git仓库与私有SDK均需保留。
 
 在线发布后可显式运行 `python -B scripts/verify/test-online-modules.py --host-dir <解压后的LazyBuddy目录> --report target/verification-release/online-modules.json`。它验证随包配置及真实签名下载，在同一宿主进程内安装新闻/红果及依赖，再卸载并回收运行时，不选内容页、不读取账号或请求上游。需要网络及正常Windows桌面会话，不加入常规离线CI。
+
+Windows下载问题需额外运行在线检查的 `--without-proxy-env` 模式，清除子进程代理环境变量，使用实际Windows系统代理，匹配资源管理器双击启动；不能只用手动设置HTTPS_PROXY的CLI成功证明桌面下载可用。

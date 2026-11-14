@@ -15,12 +15,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host-dir', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--without-proxy-env', action='store_true', help='match Explorer launch; rely on Windows system proxy')
     args = parser.parse_args()
     binaries = args.host_dir.resolve()
     source = json.loads((binaries / 'module-catalog.json').read_text(encoding='utf-8'))
     with tempfile.TemporaryDirectory(prefix='qa-online-modules-', dir=ROOT / 'target') as temporary:
         env = dict(os.environ, LAZYBUDDY_INSTANCE='qa-modules-' + uuid.uuid4().hex,
                    LAZYBUDDY_DATA_DIR=str(Path(temporary) / 'data'))
+        if args.without_proxy_env:
+            for name in list(env):
+                if name.upper() in ('ALL_PROXY', 'HTTP_PROXY', 'HTTPS_PROXY'):
+                    del env[name]
         host = subprocess.Popen([str(binaries / 'lazybuddy.exe'), '--background'], env=env,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -77,6 +82,7 @@ def main():
                 assert status['error'] is None, status
                 assert set(status['modules']) == expected, status
             report = dict(passed=True, catalog_url=source['url'], same_process=True,
+                          without_proxy_env=args.without_proxy_env,
                           installed=['news', 'hongguo', 'python-runtime', 'media-runtime'],
                           runtime_cleanup=True, service_started=False, real_account_tested=False)
             args.report.parent.mkdir(parents=True, exist_ok=True)
