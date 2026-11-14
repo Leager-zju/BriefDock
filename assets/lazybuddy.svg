@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LazyBuddy">
+  <path fill="#5869E8" d="M17 4 H47 Q60 4 60 17 V47 Q60 60 47 60 H17 Q4 60 4 47 V17 Q4 4 17 4 Z"/>
+  <path fill="#FFFFFF" d="M25 17 H40 C49 17 54 23 54 31 C54 40 49 46 40 46 H30 L18 52 L21 45 C14 43 11 38 11 31 C11 23 16 17 25 17 Z"/>
+  <path fill="#34415F" d="M20 28 Q24 32 28 28 V31 Q24 35 20 31 Z M37 28 Q41 32 45 28 V31 Q41 35 37 31 Z M28 37 Q32 40 37 37 V39 Q32 43 28 39 Z"/>
+</svg>

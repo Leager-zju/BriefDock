@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = ["crates/module-contract", "crates/module-manager", "crates/service-client", "crates/media-ipc", "crates/host-control", "apps/cli", "apps/desktop"]
+default-members = ["apps/desktop", "apps/cli"]
+
+[patch.crates-io]
+iced_wgpu = { path = "vendor/iced_wgpu" }
+
+iced_runtime = { path = "vendor/iced_runtime" }
+iced_winit = { path = "vendor/iced_winit" }
+iced_widget = { path = "vendor/iced_widget" }

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "sample",
+  "name": "Contract fixture",
+  "version": "0.1.0",
+  "service_api": 1,
+  "target": "windows-x86_64",
+  "entrypoint": "bin/service.exe",
+  "page": {
+    "template": "news_grid",
+    "catalog_method": "sources",
+    "fetch_method": "fetch"
+  },
+  "dependencies": []
+}

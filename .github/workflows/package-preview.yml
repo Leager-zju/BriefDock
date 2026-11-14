@@ -1,0 +1,43 @@
+name: LazyBuddy Windows packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Distribution preflight
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath LICENSE)) { throw 'Project license must be confirmed before uploading distribution artifacts.' }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: lazybuddy-release-${{ runner.os }}-${{ hashFiles('Cargo.lock', '**/Cargo.toml') }}
+      - name: Build base host
+        shell: pwsh
+        run: |
+          cargo build --release --locked -p lazybuddy -p lazybuddy-cli
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/package_base.py --output target/base
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LazyBuddy-windows-development-packages
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            target/base/*.zip
+            target/base/package.json

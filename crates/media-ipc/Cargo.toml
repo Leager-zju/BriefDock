@@ -1,0 +1,18 @@
+[package]
+license = "MIT"
+name = "lazybuddy-media-ipc"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+gpu = ["dep:windows"]
+wgpu = ["gpu", "dep:wgpu", "dep:futures"]
+ui = ["wgpu", "dep:iced"]
+
+[dependencies]
+wgpu = { version = "27", default-features = false, features = ["dx12", "std"], optional = true }
+futures = { version = "0.3", optional = true }
+iced = { version = "0.14", default-features = false, features = ["wgpu", "tokio"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", optional = true, features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D12", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_Threading", "Win32_System_IO", "Win32_Security"] }

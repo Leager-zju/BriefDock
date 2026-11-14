@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LazyBuddy，上班摸鱼的桌面搭子。Windows 主程序搭配按需安装的新闻、短剧功能。">
+<meta name="theme-color" content="#f6f3eb"><link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>LazyBuddy · 你的桌面搭子</title>
+<style>
+:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#263531;background:#f6f3eb;line-height:1.7}*{box-sizing:border-box}body{margin:0}a{color:inherit;text-underline-offset:.25em}main{max-width:1040px;margin:auto;padding:36px 28px 64px}nav{display:flex;align-items:center;justify-content:space-between;gap:20px}nav strong{font-size:22px}nav a{font-size:14px}header{padding:90px 0 70px;max-width:760px}.brand{width:96px;height:96px}.eyebrow{color:#52776a;font-size:14px}h1{font-size:clamp(40px,7vw,72px);line-height:1.15;letter-spacing:-.04em;margin:24px 0}header p{font-size:20px;max-width:620px;color:#55645d}.actions{display:flex;gap:16px;flex-wrap:wrap;margin-top:30px}.primary{background:#284b3d;color:white;padding:12px 22px;border-radius:12px;text-decoration:none}.secondary{padding:12px 0}.status{padding:18px 22px;border:1px solid #d8d9cd;border-radius:16px;background:#eeeee3}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:38px 0}article{padding:26px;background:#fffdf8;border-radius:20px}article h2{font-size:21px;margin:0 0 12px}article p{color:#55645d;margin:0}section h2{font-size:28px}footer{border-top:1px solid #d8d9cd;margin-top:54px;padding-top:20px;color:#637067;font-size:14px}@media(max-width:700px){header{padding:55px 0 40px}.grid{grid-template-columns:1fr}main{padding:24px 20px}header p{font-size:18px}}
+</style>
+</head>
+<body><main>
+<nav aria-label="主导航"><strong>LazyBuddy</strong><a href="https://github.com/LazyBuddyDev/LazyBuddy/tree/main">查看源码</a></nav>
+<header><img class="brand" src="icon.svg" width="96" height="96" alt="LazyBuddy 图标"><p class="eyebrow">Windows 桌面搭子</p><h1>摸鱼，也按需。</h1><p>看一眼新闻，追一集短剧。只安装你需要的功能，留一点桌面空间给自己。</p><div class="actions"><a class="primary" href="https://github.com/LazyBuddyDev/LazyBuddy/tree/main">查看 2.0 开发进展</a><a class="secondary" href="https://github.com/LazyBuddyDev/LazyBuddy/blob/main/docs/module-api.md">服务与模块接入</a></div></header>
+<div class="status" role="note"><strong>2.0 正在重构，尚未发布稳定版。</strong>公开下载、模块目录与真实账号的新入口验收仍在准备中。公开下载准备好后会更新此处。</div>
+<section aria-label="产品结构"><div class="grid"><article><h2>轻装上桌</h2><p>主程序负责界面和窗口。新闻、短剧和播放组件分别安装，不用就卸载。</p></article><article><h2>各忙各的</h2><p>切到一个功能，其他功能静默。收起窗口时暂停内容任务，回来看时保留位置。</p></article><article><h2>自由接入</h2><p>新闻与短剧服务通过独立 API 提供数据。你可以使用自己的前端接入服务。</p></article></div></section>
+<section><h2>从 BriefDock 到 LazyBuddy</h2><p>这次更新面向 Windows x64，暂不适配 macOS。新产品使用独立数据与凭据空间，不自动迁移旧数据。构建方式、验证范围与尚未完成的事项均记录在项目中。</p></section>
+<footer>LazyBuddy · 你的桌面搭子。自有代码采用 MIT，版权归 Leager；第三方组件保留原许可。</footer>
+</main></body></html>

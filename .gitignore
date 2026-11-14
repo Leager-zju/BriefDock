@@ -1,0 +1,37 @@
+# Rust build output and local release packages
+/target/
+/dist/
+/Releases/
+/tmp/
+
+# Local IDE and Windows files
+/.vs/
+/.vscode/
+/.idea/
+Thumbs.db
+Desktop.ini
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pvk
+
+# Runtime data copied into the workspace for local debugging
+snapshot.json
+followed-sources.txt
+interval-minutes.txt
+settings.json
+cache-error.log
+app-update-error.log
+
+# Local Windows batch helpers
+*.bat
+
+!/build_and_run.bat
+
+# Generated Python bytecode
+__pycache__/
+*.py[cod]

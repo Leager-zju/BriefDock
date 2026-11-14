@@ -1,0 +1,55 @@
+name: LazyBuddy checks
+
+on:
+  push:
+    branches: [main, 'codex/lazybuddy-*']
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/checks.yml']
+  pull_request:
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/checks.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: lazybuddy-${{ runner.os }}-${{ hashFiles('Cargo.lock', '**/Cargo.toml') }}
+      - name: Rust unit and contract tests
+        shell: pwsh
+        run: |
+          cargo fmt --all -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --workspace --locked
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo build --locked -p lazybuddy -p lazybuddy-cli
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo build --locked -p lazybuddy-service-client --example fixture
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Base host without optional runtimes
+        shell: pwsh
+        run: |
+          python -B scripts/verify/test-host-startup.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/verify/test-module-cli.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/verify/test-host-lifecycle.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/verify/test-catalog-assembly.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
