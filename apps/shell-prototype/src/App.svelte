@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import Icon from './Icon.svelte';
+  import Switch from './Switch.svelte';
   import Hongguo from './Hongguo.svelte';
   import { accepts, active, formatTime, toggleSection, moduleTarget, type Root, type Section, type View } from './lifecycle';
   import logoUrl from '../../../assets/lazybuddy.svg';
@@ -13,6 +14,8 @@
   let visible = $state(!document.hidden);
   let view = $state<View>({ root: 'news', section: 'content', visible: !document.hidden, generation: 0 });
   let dark = $state(false);
+  let pinned=$state(false);
+  async function togglePin(){try{pinned=await call<boolean>('toggle_pin');}catch(error){notice=String(error);}}
   let notice = $state('离线样例 · 不连接真实新闻或红果账号');
   let feeds = $state<Source[]>([]);
   let filter = $state('all');
@@ -177,6 +180,7 @@
     </div>
     <div class="toolbar-spacer" data-tauri-drag-region></div>
     <nav aria-label="全局操作">
+      <button class="icon-button" class:chosen={pinned} aria-label="置顶" title="置顶" aria-pressed={pinned} onclick={togglePin}><Icon name="pin"/></button>
       <button class="icon-button" class:chosen={section === 'modules'} onclick={toggleModules} aria-label="功能" title="功能" aria-pressed={section === 'modules'}><Icon name="box"/></button>
       <button class="icon-button" class:chosen={section === 'settings'} onclick={() => change(root, toggleSection(section, 'settings'))} aria-label="设置" title="设置" aria-pressed={section === 'settings'}><Icon name="settings"/></button>
       <span class="divider"></span>
@@ -202,7 +206,7 @@
         <div class="settings-content">
           <h1>{category === 'page' ? (root === 'news' ? '新闻设置' : '短剧设置') : category === 'appearance' ? '显示设置' : category === 'system' ? '系统设置' : '关于我们'}</h1>
           {#if category === 'appearance'}
-            <div class="setting-row"><div><strong>外观</strong><p>选择适合当前环境的界面主题</p></div><button onclick={() => dark = !dark}><Icon name={dark ? 'sun' : 'moon'}/>{dark ? '切换浅色' : '切换深色'}</button></div>
+            <div class="setting-row"><div><strong>深色模式</strong></div><Switch label="深色模式" checked={dark} onchange={value=>dark=value}/></div>
             <div class="setting-row"><div><strong>界面动效</strong><p>仅在操作时短暂过渡，静止时不持续绘制</p></div><span class="tag">按需</span></div>
           {:else if category === 'system'}
             <div class="setting-row"><div><strong>应用自动更新</strong><p>正式宿主仍使用已有签名更新器</p></div><span class="tag">原型不执行更新</span></div><div class="setting-row"><div><strong>后台行为</strong><p>收起后暂停视频和页面任务</p></div><span class="tag">事件驱动</span></div>

@@ -4,6 +4,9 @@ export type Playback = {session:number;loading:boolean;prepared:boolean;suspende
 export function qualityLabels(values:number[]):string[] {
   return values.filter(value=>[360,480,720,1080].includes(value)).map(value=>`${value}p`);
 }
+export function favoriteValue(items:Item[],pending:{id:string;value:boolean}|null,id:string|undefined):boolean {
+  return pending&&pending.id===id?pending.value:items.some(item=>item.id===id);
+}
 export function loginPending(state:string):boolean {return ['preparing','pending','scanned','verifying'].includes(state);}
 export function adjacent(episodes:number[],current:number,delta:number):number|undefined {
   const index=episodes.indexOf(current);

@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { name, size = 18 }: { name: string; size?: number } = $props();
+  let { name, size = 18, filled=false }: { name: string; size?: number;filled?:boolean } = $props();
   const paths: Record<string, string> = {
     box: 'M3 7h18v14H3z M3 7l3-4h12l3 4 M9 11h6',
     settings: 'M4 7h16 M4 17h16 M8 4v6 M16 14v6',
@@ -13,7 +13,8 @@
     sun: 'M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5.5 5.5L7 7 M17 17l1.5 1.5 M5.5 18.5L7 17 M17 7l1.5-1.5 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
     arrow: 'M19 12H5 M11 6l-6 6 6 6', clock: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
     check: 'M5 12l4 4L19 6', search: 'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+    pin: 'M9 3h6l-1 6 4 4H6l4-4z M12 13v8',
     star: 'M12 3l3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 10l6-1z'
   };
 </script>
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.box}/></svg>
+<svg width={size} height={size} viewBox="0 0 24 24" fill={filled?'#e9b308':'none'} stroke={filled?'#e9b308':'currentColor'} stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.box}/></svg>

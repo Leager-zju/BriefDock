@@ -191,6 +191,27 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
 }
 
 #[tauri::command]
+fn toggle_pin(window: tauri::WebviewWindow) -> Result<bool, String> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+    let hwnd = window.hwnd().map_err(|_| "window unavailable")?.0 as _;
+    let pinned = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST == 0;
+    if unsafe {
+        SetWindowPos(
+            hwnd,
+            if pinned { HWND_TOPMOST } else { HWND_NOTOPMOST },
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+    } == 0
+    {
+        return Err("pin failed".into());
+    }
+    Ok(pinned)
+}
+#[tauri::command]
 fn resize(width: u32, height: u32, window: tauri::WebviewWindow) -> Result<(), String> {
     if dock::is_docked(&window) {
         return Err("expand before resizing".into());
@@ -306,6 +327,7 @@ fn main() {
             contract_templates,
             window_action,
             resize,
+            toggle_pin,
             playback::playback_call
         ])
         .register_uri_scheme_protocol("sample", |_, request| clip_response(&request))

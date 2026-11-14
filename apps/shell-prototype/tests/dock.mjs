@@ -48,7 +48,7 @@ try{
   assert.equal(await page.locator('[data-testid=shell]').getAttribute('data-section'),'content');
   await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByRole('heading',{name:'显示设置',exact:true}).waitFor();
-  await page.getByRole('button',{name:'切换深色',exact:true}).click();
+  await page.getByRole('switch',{name:'深色模式',exact:true}).click();
   await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByLabel('选择功能').selectOption('hongguo');
   await page.getByRole('button',{name:'打开播放页',exact:true}).click();

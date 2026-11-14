@@ -1,6 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {loginPending,adjacent,message,qualityLabels} from '../src/hongguo.ts';
+import {loginPending,adjacent,message,qualityLabels,favoriteValue} from '../src/hongguo.ts';
+test('favorite feedback rolls back to confirmed list and never crosses items',()=>{
+  const items=[{id:'1',title:'fixture',episodes:1}];
+  assert.equal(favoriteValue(items,null,'1'),true);
+  assert.equal(favoriteValue(items,{id:'1',value:false},'1'),false);
+  assert.equal(favoriteValue(items,{id:'2',value:true},'1'),true);
+  assert.equal(favoriteValue(items,{id:'2',value:true},'2'),true);
+  assert.equal(favoriteValue(items,null,'2'),false);
+  assert.equal(favoriteValue([],null,undefined),false);
+});
 test('numeric service qualities become canonical playback request strings',()=>{
   assert.deepEqual(qualityLabels([360,480,720,1080]),['360p','480p','720p','1080p']);
   assert.deepEqual(qualityLabels([1080]),['1080p']);
