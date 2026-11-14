@@ -69,6 +69,7 @@
 - 交付证据：宿主48380f6/CI43592203217、服务9c87efc/CI43592202659均已推送并通过。当前0.2.1包与源码一致、入口health声明credential_scopes；真实包BuildOnly完成。本机已打开target/qa-browser-video/build/debug/lazybuddy-shell-prototype.exe（PID25660）供用户扫码，未自动登录；正常关闭多开的自有实例，保留单一预览，正式应用未替换。
 - 真实验收失败：用户扫码后播放《黑塔：从超忆症开始成神》报app_playback_unavailable，用户确认同账号手机App第1集正常。本端对首季7678157108310723646第1集沿用已保存预览身份/设备，只读取源复现：目录成功，playback阶段HTTP200/body_bytes=0；按已启用系统代理做一次对照仍相同。媒体资源尚未创建，未到HTML解码；不能判成账号无权限、代理故障或浏览器不兼容。未换身份/设备或轮换接口。已增加精确空响应错误分类和Error对象中文转换，服务21项、前端7项及类型检查通过；这是诊断修正，播放故障仍未修复。当前运行0.2.1包未覆盖，诊断源码候选0.2.2未交付。上游同类空响应与认证边界见服务docs/browser-playback.md；下一步核对受支持的App身份/请求契约并验证固定样本，真实播放验收保持未完成。
 - 关闭到托盘修复：原型“×”原先直接退出且无托盘；新增Tauri托盘Logo、左键/菜单显示、菜单退出，close与quit分开，原生CloseRequested同样隐藏。专项暴露原生无焦点ShowWindow与Tao隐藏缓存不一致，改为成对原生显示/隐藏/最小化。新增托盘菜单单元1项通过；前端类型检查通过；实际Windows×隐藏、WM_CLOSE隐藏、托盘通知回调恢复、最小化后恢复、设置状态保留、隐藏无新增新闻请求、quit正常退出0通过，关闭路径未出现Chrome_WidgetWin_0注销警告。合成媒体相关回归通过（暂停seek3.1秒，隐藏资源409，恢复3.1秒暂停/1.5倍速），不代表真实节目通过。证据target/verification-shell/tray.json及target/verification-browser-video/browser-media.json；测试自有配置已清理。旧预览25660已通过其实际Tauri窗口WM_CLOSE正常退出，保存账号保留；同一测试入口构建完成，待重开并同步分支。
+- 托盘交付及按钮精简：a87634f已推送，CI43595634451通过；随后按用户要求移除“×”旁的缩小按钮，保留系统最小化及贴边隐藏。前端构建/类型检查、实际工具栏无该按钮及托盘专项通过；CLI按窗口所属PID/路径和实际菜单文字选择“退出”，确认托盘菜单正常退出码0，无鼠标输入。上一预览11812正常退出，同一target/qa-browser-video/build/debug入口已覆盖并重开PID488，账号/配置保留，未自动访问真实账号；当前真实播放故障仍未解决。新报告tray.json含no_minimize_button=true，测试临时WebView配置已清理。
 - 阻塞与下一步：用户用run-shell-prototype.ps1 -ServicePackages启动当前候选后亲自扫码，验收真实搜索、收藏、媒体权限、浏览器格式及音画同步，再确认优化版资源预算。既有target/shell-prototype入口仍为先前版本，本轮候选未覆盖用户实例或发布更新；完整迁移不提前归档。
 
 ## 已归档

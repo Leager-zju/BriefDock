@@ -75,6 +75,8 @@ node apps/shell-prototype/tests/native-media.mjs target/qa-native-video/build/de
 
 窗口“×”及系统CloseRequested只隐藏到托盘；左键托盘Logo或右键“显示 LazyBuddy”恢复，右键“退出”才执行服务收尾并退出进程。明确CLI quit与close分开，验证脚本收尾使用quit。通过Tauri内置tray-icon能力创建图标，复用应用Logo及既有页面显隐生命周期。
 
+工具栏不再显示“×”旁的缩小按钮，系统最小化及贴边收起能力保留。托盘专项同时断言该按钮不存在；native-tray.py可按所属进程和菜单文字选择真实托盘“退出”，无需鼠标输入。
+
 Windows无焦点显示原先直接ShowWindow，Tao内部可见标志仍为初始hidden，随后框架hide被判成无变化，导致仅页面静默而窗口仍可见。现显/隐/最小化成对使用原生窗口路径，保留无焦点恢复。tests/tray.mjs通过Windows实际可见性、原生WM_CLOSE、托盘库真实通知回调和明确quit验证，而非只看前端visible。Chrome_WidgetWin_0注销警告的原因未确认；关闭到托盘路径不销毁WebView，本次该路径未出现警告，不承诺Chromium在真正退出时永不输出此日志。
 
 原型沿用现有宿主WM_MOVING/WM_EXITSIZEMOVE和当前显示器工作区算法，独立适配Tauri，不导入Iced实现。只有拖动完成且靠近左右边缘才收起，单纯缩放不触发。收起为40逻辑像素圆形Logo，当前DPI下换算物理尺寸，用原生椭圆区域裁剪显示及命中；收起期间浮在上层，展开恢复原有置顶状态、有效位置、尺寸、页面及滚动位置。Logo点击展开，悬停不自动展开。

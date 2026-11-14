@@ -1,12 +1,12 @@
 """Send close/tray messages only to the explicitly owned preview, without mouse input."""
-import argparse,ctypes,json
+import argparse,ctypes,json,time
 from ctypes import wintypes as w
 from pathlib import Path
 
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--pid',type=int,required=True)
 p.add_argument('--exe',type=Path,required=True)
-p.add_argument('--action',choices=['snapshot','close','restore'],required=True)
+p.add_argument('--action',choices=['snapshot','close','restore','quit'],required=True)
 args=p.parse_args()
 user=ctypes.WinDLL('user32',use_last_error=True)
 kernel=ctypes.WinDLL('kernel32',use_last_error=True)
@@ -31,7 +31,7 @@ def collect(hwnd,_):
     pid=w.DWORD();user.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
     if pid.value==args.pid:
         value=ctypes.create_unicode_buffer(256)
-        if args.action=='restore':
+        if args.action in ('restore','quit'):
             user.GetClassNameW(hwnd,value,len(value));matches=value.value=='tray_icon_app'
         else:
             user.GetWindowTextW(hwnd,value,len(value));matches=value.value.startswith('LazyBuddy')
@@ -42,6 +42,36 @@ if len(windows)!=1:raise ValueError('owned window not uniquely identified')
 user.PostMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM]
 user.IsWindowVisible.argtypes=[w.HWND]
 user.IsIconic.argtypes=[w.HWND]
+if args.action=='quit':
+    class MenuBar(ctypes.Structure):
+        _fields_=[('size',w.DWORD),('rect',w.RECT),('menu',w.HANDLE),('window',w.HWND),('flags',w.DWORD)]
+    user.GetMenuBarInfo.argtypes=[w.HWND,w.LONG,w.LONG,ctypes.POINTER(MenuBar)]
+    user.GetMenuItemCount.argtypes=[w.HANDLE]
+    user.GetMenuStringW.argtypes=[w.HANDLE,w.UINT,w.LPWSTR,ctypes.c_int,w.UINT]
+    user.GetMenuItemID.argtypes=[w.HANDLE,ctypes.c_int];user.GetMenuItemID.restype=w.UINT
+    command=[]
+    @callback
+    def menu_item(hwnd,_):
+        pid=w.DWORD();user.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+        name=ctypes.create_unicode_buffer(256);user.GetClassNameW(hwnd,name,len(name))
+        if pid.value==args.pid and name.value=='#32768':
+            bar=MenuBar();bar.size=ctypes.sizeof(bar)
+            if user.GetMenuBarInfo(hwnd,-4,0,ctypes.byref(bar)):
+                for index in range(user.GetMenuItemCount(bar.menu)):
+                    label=ctypes.create_unicode_buffer(256);user.GetMenuStringW(bar.menu,index,label,len(label),0x400)
+                    if label.value.replace('&','')=='退出':command.append(user.GetMenuItemID(bar.menu,index))
+        return True
+    if not user.PostMessageW(windows[0],6002,0,0x205):raise ctypes.WinError(ctypes.get_last_error())
+    for _ in range(60):
+        user.EnumWindows(menu_item,0)
+        if command:break
+        time.sleep(.05)
+    if len(command)!=1 or command[0]==0xffffffff:
+        user.PostMessageW(windows[0],0x1f,0,0)
+        raise ValueError('owned tray exit menu not uniquely identified')
+    user.PostMessageW(windows[0],0x1f,0,0)
+    if not user.PostMessageW(windows[0],0x111,command[0],0):raise ctypes.WinError(ctypes.get_last_error())
+    raise SystemExit(0)
 if args.action=='snapshot':
     print(json.dumps(dict(visible=bool(user.IsWindowVisible(windows[0])),minimized=bool(user.IsIconic(windows[0])))))
     raise SystemExit(0)

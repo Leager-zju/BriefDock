@@ -26,6 +26,7 @@ try{
   await until(()=>{page=browser.contexts().flatMap(c=>c.pages()).find(p=>p.url().includes('tauri.localhost'));return !!page;});
   await page.waitForSelector('[data-events-ready=true]');await invoke('window_action',{action:'show'});
   assert.equal((await invoke('snapshot')).tray,true);
+  assert.equal(await page.getByRole('button',{name:'收起',exact:true}).count(),0);
   await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByRole('button',{name:'关闭到托盘',exact:true}).click();
   await until(async()=>!(await invoke('snapshot')).view.visible);
@@ -40,14 +41,14 @@ try{
   assert.equal(child.exitCode,null);
   assert.doesNotMatch(stderr,/Failed to unregister class Chrome_WidgetWin_0/);
   native('restore');await until(async()=>(await invoke('snapshot')).view.visible);
-  await page.getByRole('button',{name:'收起',exact:true}).click();
+  await invoke('window_action',{action:'minimize'});
   await until(()=>JSON.parse(native('snapshot')).minimized);
   native('restore');await until(()=>!JSON.parse(native('snapshot')).minimized);
   await until(async()=>(await invoke('snapshot')).view.visible);
-  await invoke('window_action',{action:'quit'});
+  native('quit');
   await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(15000)]);
   assert.notEqual(child.exitCode,null,'explicit quit must exit normally');assert.equal(child.exitCode,0);
-  const report={toolbar_close_hides:true,native_close_hides:true,tray_callback_restores:true,minimize_and_restore:true,settings_preserved:true,hidden_feed_requests_unchanged:true,no_close_unregister_warning:true,explicit_quit_exit:child.exitCode,scope:'owned offline preview; no accounts, media or physical input'};
+  const report={toolbar_close_hides:true,no_minimize_button:true,native_close_hides:true,tray_callback_restores:true,minimize_and_restore:true,settings_preserved:true,hidden_feed_requests_unchanged:true,no_close_unregister_warning:true,explicit_quit_exit:child.exitCode,scope:'owned offline preview; no accounts, media or physical input'};
   await writeFile(path.join(output,'tray.json'),JSON.stringify(report,null,2));console.log(report);
 }catch(error){
   if(page){console.error({notice:await page.locator('.notice').textContent(),snapshot:await invoke('snapshot'),native:JSON.parse(native('snapshot'))});}

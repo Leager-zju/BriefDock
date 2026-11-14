@@ -180,7 +180,6 @@
       <button class="icon-button" class:chosen={section === 'modules'} onclick={toggleModules} aria-label="功能" title="功能" aria-pressed={section === 'modules'}><Icon name="box"/></button>
       <button class="icon-button" class:chosen={section === 'settings'} onclick={() => change(root, toggleSection(section, 'settings'))} aria-label="设置" title="设置" aria-pressed={section === 'settings'}><Icon name="settings"/></button>
       <span class="divider"></span>
-      <button class="icon-button" aria-label="收起" onclick={() => action('minimize')}><Icon name="minus"/></button>
       <button class="icon-button close-button" aria-label="关闭到托盘" title="关闭到托盘" onclick={() => action('close')}><Icon name="close"/></button>
     </nav>
   </header>
