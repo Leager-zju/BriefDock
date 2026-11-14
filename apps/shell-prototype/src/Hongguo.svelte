@@ -17,8 +17,14 @@
   let watched=0;let lastCheckpoint=0;let epoch=0;let playRequest=0;let live=false;let timer:ReturnType<typeof setTimeout>|undefined;let frame:number|undefined;
   let cancelMetadata:(()=>void)|undefined;let history:Record<string,{episode:number;time:number}>={};
   let opening:Promise<Playback>|undefined;
+  let direct=$state(localStorage.getItem('lazybuddy.hongguo.direct')!=='false');
   let frameTarget:number|null=null;
-  const raw=<T,>(method:string,args:Record<string,unknown>={})=>invoke<T>('playback_call',{method,args});
+  const raw=<T,>(method:string,args:Record<string,unknown>={})=>invoke<T>('playback_call',{method,args,direct});
+  async function changeConnection(value:boolean){
+    direct=value;localStorage.setItem('lazybuddy.hongguo.direct',String(value));
+    notice(value?'红果直连已开启':'红果已恢复跟随系统代理');
+    await suspend(false);await activate();
+  }
   const valid=(ticket:number)=>live&&active&&ticket===epoch;
   function warn(error:unknown){const value=String(error);if(!/stale_|inactive_|页面已暂停/.test(value))notice(message(error));}
   function stopFrames(){if(video&&frame!==undefined)video.cancelVideoFrameCallback(frame);frame=undefined;}
@@ -176,7 +182,7 @@
 
 {#if showing}
   {#if accountOnly}
-    <section class="settings-layout content-width">{@render navigation()}<div class="settings-content account-content"><h1>红果账号</h1>{#if account.state==='signed_in'}<p>{account.name}</p><button class="logout" onclick={logout}>退出登录</button>{:else}<button onclick={login} disabled={busy||loginPending(account.state)}>登录</button>{/if}</div></section>
+    <section class="settings-layout content-width">{@render navigation()}<div class="settings-content account-content"><h1>红果账号</h1><label><input type="checkbox" checked={direct} disabled={busy||loginPending(account.state)||account.operation==='pending'} onchange={event=>changeConnection(event.currentTarget.checked)}/>直连</label>{#if account.state==='signed_in'}<p>{account.name}</p><button class="logout" onclick={logout}>退出登录</button>{:else}<button onclick={login} disabled={busy||loginPending(account.state)}>登录</button>{/if}</div></section>
   {:else if account.state!=='signed_in'}
     <section class="account-login"><button onclick={login} disabled={busy||loginPending(account.state)}>登录</button></section>
   {:else if mode==='player'}

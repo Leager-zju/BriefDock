@@ -26,7 +26,7 @@ Server核对Host、随机路径和唯一允许Origin，提供CORS、GET/HEAD/单
 
 真实网络手动验收入口（在项目根目录执行）：
 
-已有本机预览构建时，可双击根目录start_preview.bat直接启动真实服务模式，不编译、不下载依赖。测试退出代理后的行为时，先从托盘菜单退出旧预览，再手动退出代理软件并关闭TUN，最后运行该BAT。BAT只清除本次子进程继承的HTTP_PROXY/HTTPS_PROXY/ALL_PROXY，不修改Windows系统代理或代理软件；无法由此保证系统代理/TUN已关闭。沿用既有预览凭据及数据。
+已有本机预览构建时，可双击根目录start_preview.bat直接启动真实服务模式，不编译、不下载依赖。先从托盘菜单退出旧预览，再运行该BAT。红果专属设置提供“直连”开关，默认开启并在独立WebView存储保存；开启时只对红果服务子进程清除HTTP_PROXY/HTTPS_PROXY/ALL_PROXY并设置NO_PROXY=*，Python不会回退读取Windows代理。关闭时恢复系统/环境代理，服务0.2.3将Python读取的系统代理转给Go/Rust辅助进程，避免同一服务内路线不一致。切换重建红果连接，不修改Clash、系统设置或ChatGPT进程；BAT不再强制代理环境。适用于当前Clash for Windows全局HTTP代理、无TUN配置；不能绕过TUN/虚拟网卡接管。沿用既有预览凭据及数据。单纯清除地址环境变量不能阻止urllib读取注册表代理，因此直连必须同时设置NO_PROXY。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-shell-prototype.ps1 -ServicePackages .\target\service-exports\lazybuddy-hongguo-service\target\packages-browser-current

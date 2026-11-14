@@ -12,6 +12,7 @@ use tauri::Manager;
 
 struct Connection {
     service: Session,
+    direct: bool,
     lease: Option<u64>,
     account_pending: bool,
 }
@@ -35,7 +36,18 @@ fn scoped_package(version: &str) -> bool {
     };
     parts.len() == 3 && parts.as_slice() >= &[0, 2, 1]
 }
-fn connect() -> Result<Session, String> {
+fn direct_environment() -> Vec<(String, String)> {
+    [
+        ("HTTP_PROXY", ""),
+        ("HTTPS_PROXY", ""),
+        ("ALL_PROXY", ""),
+        ("NO_PROXY", "*"),
+    ]
+    .into_iter()
+    .map(|(key, value)| (key.into(), value.into()))
+    .collect()
+}
+fn connect(direct: bool) -> Result<Session, String> {
     // Explicit development package directory; never load sibling service source.
     let root = PathBuf::from(
         std::env::var_os("LAZYBUDDY_BROWSER_PACKAGES").ok_or("browser_service_not_enabled")?,
@@ -69,21 +81,29 @@ fn connect() -> Result<Session, String> {
     Ok(Session::with_environment(
         root.join("python-runtime").join(python.entrypoint),
         arguments,
-        vec![
-            ("LAZYBUDDY_INSTANCE".into(), "shell-preview".into()),
-            ("LAZYBUDDY_CREDENTIAL_SCOPE".into(), "shell-preview".into()),
-            (
-                "LAZYBUDDY_DATA_DIR".into(),
-                PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("local_data_unavailable")?)
+        {
+            let mut environment = vec![
+                ("LAZYBUDDY_INSTANCE".into(), "shell-preview".into()),
+                ("LAZYBUDDY_CREDENTIAL_SCOPE".into(), "shell-preview".into()),
+                (
+                    "LAZYBUDDY_DATA_DIR".into(),
+                    PathBuf::from(
+                        std::env::var_os("LOCALAPPDATA").ok_or("local_data_unavailable")?,
+                    )
                     .join("LazyBuddyShellPreview/hongguo")
                     .to_string_lossy()
                     .into_owned(),
-            ),
-            ("LAZYBUDDY_PLAYER_REAL".into(), "1".into()),
-            ("LAZYBUDDY_SEARCH_REAL".into(), "1".into()),
-            ("LAZYBUDDY_FAVORITES_REAL".into(), "1".into()),
-            ("LAZYBUDDY_PROGRESS_REAL".into(), "0".into()),
-        ],
+                ),
+                ("LAZYBUDDY_PLAYER_REAL".into(), "1".into()),
+                ("LAZYBUDDY_SEARCH_REAL".into(), "1".into()),
+                ("LAZYBUDDY_FAVORITES_REAL".into(), "1".into()),
+                ("LAZYBUDDY_PROGRESS_REAL".into(), "0".into()),
+            ];
+            if direct {
+                environment.extend(direct_environment());
+            }
+            environment
+        },
     ))
 }
 impl State {
@@ -184,6 +204,7 @@ fn allowed(method: &str) -> bool {
 pub async fn playback_call(
     method: String,
     args: Value,
+    direct: Option<bool>,
     window: tauri::WebviewWindow,
     state: tauri::State<'_, State>,
 ) -> Result<Value, String> {
@@ -208,6 +229,25 @@ pub async fn playback_call(
             return Err("inactive_media_page".into());
         }
     }
+    let direct = direct.unwrap_or(true);
+    let previous = {
+        let mut slot = state.connection.lock().unwrap();
+        if slot
+            .as_ref()
+            .is_some_and(|connection| connection.direct != direct)
+        {
+            if checkpoint {
+                return Err("stale_playback_request".into());
+            }
+            state.epoch.fetch_add(1, Ordering::AcqRel);
+            slot.take()
+        } else {
+            None
+        }
+    };
+    if let Some(connection) = previous {
+        connection.service.shutdown().await;
+    }
     let epoch = state.epoch.load(Ordering::Acquire);
     let service = {
         let mut slot = state.connection.lock().unwrap();
@@ -216,7 +256,8 @@ pub async fn playback_call(
                 return Err("stale_playback_request".into());
             }
             *slot = Some(Connection {
-                service: connect()?,
+                service: connect(direct)?,
+                direct,
                 lease: None,
                 account_pending: false,
             });
@@ -265,6 +306,15 @@ fn resource_session(data: &Value) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_mode_overrides_only_child_proxy_environment() {
+        let environment = direct_environment();
+        assert_eq!(environment.len(), 4);
+        assert!(environment.contains(&("NO_PROXY".into(), "*".into())));
+        for key in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"] {
+            assert!(environment.contains(&(key.into(), String::new())));
+        }
+    }
     #[test]
     fn closed_resource_does_not_keep_a_decoder_lease() {
         assert_eq!(

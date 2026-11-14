@@ -29,6 +29,15 @@ try{
   await page.getByRole('button',{name:'返回',exact:true}).click();
   assert.equal(await page.locator('[data-testid=shell]').getAttribute('data-section'),'content');
   await page.getByLabel('选择功能').selectOption('hongguo');
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.getByLabel('直连',{exact:true}).uncheck();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('lazybuddy.hongguo.direct')),'false');
+  await page.reload();await page.waitForSelector('[data-events-ready=true]');
+  await page.getByLabel('选择功能').selectOption('hongguo');
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  assert.equal(await page.getByLabel('直连',{exact:true}).isChecked(),false);
+  await page.getByLabel('直连',{exact:true}).check();
+  await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByRole('button',{name:'登录',exact:true}).click();
   await page.getByRole('dialog',{name:'扫码登录'}).waitFor();
   await page.getByAltText('红果登录二维码').waitFor();
@@ -80,7 +89,7 @@ try{
   await page.getByRole('heading',{name:'红果账号',exact:true}).waitFor();
   await page.getByRole('button',{name:'退出登录',exact:true}).click();
   await page.getByRole('button',{name:'登录',exact:true}).waitFor();
-  report={initial,seek,mediaTime,restored,numeric_qualities_and_series_switch:true,media_error_retry:true,module_back:'content',qr_cancel:true,qr_stopped_in_global_settings:true,account_logout:true,scope:'fixture QR/account workflow and browser resource; no real account or upstream network'};
+  report={initial,seek,mediaTime,restored,direct_setting_persists:true,numeric_qualities_and_series_switch:true,media_error_retry:true,module_back:'content',qr_cancel:true,qr_stopped_in_global_settings:true,account_logout:true,scope:'fixture QR/account workflow and browser resource; no real account or upstream network'};
   await invoke('window_action',{action:'quit'});
   await new Promise((resolve,reject)=>{if(child.exitCode!==null)return resolve();const timer=setTimeout(()=>reject(Error('prototype exit timeout')),15000);child.once('exit',()=>{clearTimeout(timer);resolve();});});
   await writeFile(path.join(output,'browser-media.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
