@@ -4,11 +4,13 @@ use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 
 fn main() -> io::Result<()> {
+    let many_sources = std::env::args().any(|argument| argument == "--many-sources");
     let mut preferences = json!({"auto_refresh":false,"refresh_minutes":5,"followed":[],"hidden":[],"order":[],"default_followed":false});
     let mut output = io::stdout().lock();
     for line in io::stdin().lock().lines() {
         let request: Value = serde_json::from_str(&line?).map_err(io::Error::other)?;
         let data = match request["method"].as_str() {
+            Some("sources") if many_sources => (1..=24).map(|index| json!({"id":format!("sample-{index}"),"name":format!("示例来源 {index:02}"),"category":"Sample","subtitle":""})).collect::<Vec<_>>().into(),
             Some("health") => json!({"service":"contract-fixture","api_version":1}),
             Some("sources") => json!([
                 {"id":"first","name":"Sample A","category":"Sample","subtitle":""},

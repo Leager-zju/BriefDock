@@ -14,7 +14,7 @@ use windows_sys::{
     Win32::{
         Graphics::{
             Dwm::{DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute},
-            Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn},
+            Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn},
         },
         UI::HiDpi::GetDpiForWindow,
     },
@@ -439,8 +439,7 @@ impl Desktop {
         if width <= 0 || height <= 0 || self.shape == (width, height, dpi) {
             return;
         }
-        let radius = (32. * dpi as f32 / 96.).round() as i32;
-        let region = unsafe { CreateRoundRectRgn(0, 0, width + 1, height + 1, radius, radius) };
+        let region = unsafe { CreateRectRgn(0, 0, width, height) };
         if !region.is_null() {
             if unsafe { SetWindowRgn(window, region, 1) } == 0 {
                 unsafe { DeleteObject(region) };

@@ -43,7 +43,7 @@ $request='{"version":1,"command":"status","args":{}}'
 & .\target\debug\lazybuddy-cli.exe host $request
 ```
 
-可用命令：`status`、`page.select`（id）、`settings.open`（category: page/display/system/about）、`settings.back`、`modules.open`、`modules.refresh`、`modules.install/uninstall`（id）、`window.show/hide/toggle`、`app.quit`、`news.refresh`、`search`（query）、`favorites`（value）、`account.login/cancel/logout`，以及 `player.open`（series/episode）、`player.play/pause/close/seek/speed/volume/mute`。数值操作传 `value`，音量为0–1、倍速0.25–4；accepted不代表后台操作成功，随后查询状态。
+可用命令：`status`、`page.select`（id）、`settings.open`（category: page/display/system/about）、`settings.back`、`modules.open`、`modules.toggle`（打开/返回原页面）、`modules.refresh`、`modules.install/uninstall`（id）、`window.show/hide/toggle`、`app.quit`、`news.refresh`、`search`（query）、`favorites`（value）、`account.login/cancel/logout`，以及 `player.open`（series/episode）、`player.play/pause/close/seek/speed/volume/mute`。数值操作传 `value`，音量为0–1、倍速0.25–4；accepted不代表后台操作成功，随后查询状态。
 
 `player.controls` 通过布尔value显示/隐藏覆盖控件，供CLI及隔离截图使用；正常界面由悬停、Tab和菜单状态控制。`player.favorite` 返回accepted仅表示已接收，须用status的favorite_pending/favorite确认官方读回；账号忙时明确返回account_busy。
 

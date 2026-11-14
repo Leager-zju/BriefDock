@@ -1,9 +1,11 @@
 mod player;
+mod shell;
 use super::*;
 use iced::{
     Fill,
     widget::{
-        button, checkbox, column, container, image, pick_list, row, scrollable, text, text_input,
+        button as iced_button, checkbox as iced_checkbox, column, container, image, pick_list, row,
+        scrollable, text, text_input as iced_text_input,
     },
 };
 
@@ -20,7 +22,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
             container::Style::default()
                 .background(theme.palette().background)
                 .border(iced::Border {
-                    radius: 16.into(),
+                    radius: 0.into(),
                     ..Default::default()
                 })
         })
@@ -28,120 +30,23 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
     }
     let list_id = app.list_id();
     let generation = app.play_generation;
-    let header: Element<'_, Message> = if app.width < 640. {
-        column![
-            row![
-                iced::widget::mouse_area(container(text("LazyBuddy").size(22)).width(Fill))
-                    .on_press(Message::Drag),
-                button("功能").on_press(Message::Navigate(Section::Modules)),
-                button("设置").on_press(Message::Navigate(Section::Settings(Settings::Page))),
-                button("收起").on_press(Message::HideWindow)
-            ]
-            .spacing(8)
-            .align_y(iced::Center),
-            pick_list(app.roots.clone(), app.selected.clone(), Message::Select)
-                .placeholder("选择功能")
-                .width(Fill)
-        ]
-        .spacing(10)
-        .into()
-    } else {
-        row![
-            iced::widget::mouse_area(text("LazyBuddy").size(22)).on_press(Message::Drag),
-            pick_list(app.roots.clone(), app.selected.clone(), Message::Select)
-                .placeholder("选择功能"),
-            button("功能").on_press(Message::Navigate(Section::Modules)),
-            button("设置").on_press(Message::Navigate(Section::Settings(Settings::Page))),
-            button("收起").on_press(Message::HideWindow)
-        ]
-        .spacing(12)
-        .align_y(iced::Center)
-        .into()
-    };
-    let mut body = column![header].spacing(16);
-    if let Some(error) = &app.error {
-        body = body.push(text(error));
-    }
+    let header = shell::toolbar(app);
     let content: Element<'_, Message> = match app.section {
-        Section::Modules => {
-            let mut modules = column![
-                text("按需安装的功能").size(24),
-                button("刷新").on_press_maybe((!app.manager_busy).then_some(Message::Reload))
-            ]
-            .spacing(12);
-            for module in &app.modules {
-                modules = modules.push(
-                    row![
-                        text(format!("{}  {}", module.name, module.version)).width(Fill),
-                        button("卸载").on_press_maybe(
-                            (!app.manager_busy).then(|| Message::Uninstall(module.id.clone()))
-                        )
-                    ]
-                    .spacing(12),
-                );
-            }
-            if app.modules.is_empty() {
-                modules = modules.push(text("尚未安装功能。"));
-            }
-            if app.manager_busy {
-                modules = modules.push(text("正在处理功能包…"));
-            }
-            if let Some(catalog) = &app.catalog {
-                modules = modules.push(text("可用功能").size(22));
-                for package in catalog
-                    .packages
-                    .iter()
-                    .filter(|package| package.kind == Kind::Feature)
-                {
-                    let version = app.installed.get(&package.id);
-                    let current = version == Some(&package.version);
-                    let bytes = catalog
-                        .installation_order(&package.id)
-                        .ok()
-                        .into_iter()
-                        .flatten()
-                        .filter(|package| app.installed.get(&package.id) != Some(&package.version))
-                        .map(|package| package.bytes)
-                        .sum::<u64>();
-                    let label = if current {
-                        "已安装"
-                    } else if version.is_some() {
-                        "更新"
-                    } else {
-                        "安装"
-                    };
-                    let name = if package.name.is_empty() {
-                        &package.id
-                    } else {
-                        &package.name
-                    };
-                    modules = modules.push(
-                        row![
-                            column![
-                                text(name).size(18),
-                                text(format!(
-                                    "{} · 下载约 {:.1} MB",
-                                    package.version,
-                                    bytes as f64 / 1048576.
-                                ))
-                            ]
-                            .width(Fill),
-                            button(label).on_press_maybe(
-                                (!current && !app.manager_busy)
-                                    .then(|| Message::Install(package.id.clone()))
-                            )
-                        ]
-                        .spacing(12),
-                    );
-                }
-            }
-            modules.into()
-        }
+        Section::Modules => shell::modules(app),
         Section::Settings(category) => {
-            let mut categories = column![].spacing(8).width(140);
+            let selected_category = category;
+            let mut categories = column![].spacing(8).width(120);
             if app.selected.is_some() {
                 categories = categories.push(
                     button("当前功能")
+                        .width(Fill)
+                        .style(move |theme, status| {
+                            shell::navigation_button(
+                                theme,
+                                status,
+                                selected_category == Settings::Page,
+                            )
+                        })
                         .on_press(Message::Navigate(Section::Settings(Settings::Page))),
                 );
             }
@@ -150,8 +55,14 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                 ("系统设置", Settings::System),
                 ("关于我们", Settings::About),
             ] {
-                categories = categories
-                    .push(button(label).on_press(Message::Navigate(Section::Settings(category))));
+                categories = categories.push(
+                    button(label)
+                        .width(Fill)
+                        .style(move |theme, status| {
+                            shell::navigation_button(theme, status, selected_category == category)
+                        })
+                        .on_press(Message::Navigate(Section::Settings(category))),
+                );
             }
             categories =
                 categories.push(button("返回").on_press(Message::Navigate(Section::Content)));
@@ -259,11 +170,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                     None => text("请先选择一个功能。").into(),
                 },
             };
-            let settings = if category == Settings::Page {
-                settings
-            } else {
-                scrollable(settings).height(Fill).into()
-            };
+            let settings: Element<'_, Message> = shell::page_scroll(settings).into();
             if app.width < 640. {
                 column![
                     row![
@@ -276,7 +183,8 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                             ],
                             Some(category),
                             |category| Message::Navigate(Section::Settings(category))
-                        ),
+                        )
+                        .style(shell::pick_list_style),
                         button("返回").on_press(Message::Navigate(Section::Content))
                     ]
                     .spacing(12),
@@ -310,7 +218,8 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                         categories,
                         Some(page.category.clone().unwrap_or_else(|| "全部分类".into())),
                         Message::Category
-                    ),
+                    )
+                    .style(shell::pick_list_style),
                     button("刷新").on_press_maybe((!app.busy).then_some(Message::Refresh))
                 ]
                 .spacing(12)
@@ -348,9 +257,6 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                     ]
                     .spacing(8);
                     if let Some(card) = card {
-                        if card["ok"] == false {
-                            content = content.push(text("刷新失败，请重试。"));
-                        }
                         for (index, story) in
                             card["stories"].as_array().into_iter().flatten().enumerate()
                         {
@@ -359,7 +265,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                             {
                                 content = content.push(
                                     button(text(format!("{}. {title}", index + 1)).size(14))
-                                        .style(button::text)
+                                        .style(iced_button::text)
                                         .on_press(Message::OpenLink(url.into())),
                                 );
                             }
@@ -403,7 +309,6 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                 if page.account["sync_error"].is_string() {
                     library = library.push(
                         row![
-                            text("云端进度同步失败，本地记录已保留。"),
                             button("重试同步").on_press_maybe(
                                 (app.can_interact() && page.account["operation"] != "pending")
                                     .then_some(Message::Account("progress.sync"))
@@ -415,7 +320,6 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                 if page.account["favorites_error"].is_string() {
                     library = library.push(
                         row![
-                            text("收藏读取失败，保留上次确认结果。"),
                             button("重新核对").on_press_maybe(
                                 (app.can_interact() && page.account["operation"] != "pending")
                                     .then_some(Message::Account("favorites.read"))
@@ -497,25 +401,27 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
             .into(),
         },
     };
-    if app.busy && app.current_method != "cover.read" {
-        body = body.push(text("加载中…"));
-    }
-    container(body.push(content))
-        .padding(20)
-        .width(Fill)
-        .height(Fill)
-        .style(move |theme: &iced::Theme| {
-            container::Style::default()
-                .background(iced::Color {
-                    a: app.preferences.background_opacity,
-                    ..theme.palette().background
-                })
-                .border(iced::Border {
-                    radius: 16.into(),
-                    ..Default::default()
-                })
-        })
-        .into()
+    shell::frame(app, header, content)
+}
+
+fn button<'a>(content: impl Into<Element<'a, Message>>) -> iced::widget::Button<'a, Message> {
+    iced_button(content).style(shell::primary_button)
+}
+
+fn checkbox<'a>(checked: bool) -> iced::widget::Checkbox<'a, Message> {
+    iced_checkbox(checked).style(|theme, status| {
+        let mut style = iced::widget::checkbox::primary(theme, status);
+        style.border.radius = 0.into();
+        style
+    })
+}
+
+fn text_input<'a>(placeholder: &str, value: &str) -> iced::widget::TextInput<'a, Message> {
+    iced_text_input(placeholder, value).style(|theme, status| {
+        let mut style = iced::widget::text_input::default(theme, status);
+        style.border.radius = 0.into();
+        style
+    })
 }
 
 fn card_style(theme: &iced::Theme, opacity: f32) -> container::Style {
@@ -525,7 +431,7 @@ fn card_style(theme: &iced::Theme, opacity: f32) -> container::Style {
             ..theme.extended_palette().background.weak.color
         })
         .border(iced::Border {
-            radius: 12.into(),
+            radius: 0.into(),
             ..Default::default()
         })
 }
@@ -567,6 +473,7 @@ fn news_settings(app: &App) -> Element<'_, Message> {
                     Message::NewsPreferences(preferences)
                 }
             )
+            .style(shell::pick_list_style)
         ]
         .spacing(12),
         checkbox(preferences["default_followed"] == true)
@@ -594,20 +501,24 @@ fn news_settings(app: &App) -> Element<'_, Message> {
             preferences[key] = json!(ids);
             Message::NewsPreferences(preferences)
         };
-        settings = settings.push(
-            row![
-                text(source["name"].as_str().unwrap_or("新闻")).width(Fill),
-                button(if followed { "取消关注" } else { "关注" })
-                    .on_press_maybe((!app.busy).then(|| toggle("followed", followed))),
-                button(if hidden { "显示" } else { "隐藏" })
-                    .on_press_maybe((!app.busy).then(|| toggle("hidden", hidden))),
-                button(if pinned { "取消置顶" } else { "置顶" })
-                    .on_press_maybe((!app.busy).then(|| toggle("order", pinned)))
-            ]
-            .spacing(8),
-        );
+        let actions = row![
+            button(if followed { "取消关注" } else { "关注" })
+                .on_press_maybe((!app.busy).then(|| toggle("followed", followed))),
+            button(if hidden { "显示" } else { "隐藏" })
+                .on_press_maybe((!app.busy).then(|| toggle("hidden", hidden))),
+            button(if pinned { "取消置顶" } else { "置顶" })
+                .on_press_maybe((!app.busy).then(|| toggle("order", pinned)))
+        ]
+        .spacing(8);
+        let name = text(source["name"].as_str().unwrap_or("新闻")).width(Fill);
+        let item: Element<'_, Message> = if app.width < 640. {
+            column![name, actions].spacing(6).into()
+        } else {
+            row![name, actions].spacing(12).align_y(iced::Center).into()
+        };
+        settings = settings.push(item);
     }
-    scrollable(settings).height(Fill).into()
+    settings.into()
 }
 
 fn account(app: &App) -> Element<'_, Message> {
@@ -629,16 +540,9 @@ fn account(app: &App) -> Element<'_, Message> {
         page.account["state"].as_str(),
         Some("preparing" | "verifying")
     ) {
-        return column![
-            text(if page.account["state"] == "preparing" {
-                "正在获取二维码…"
-            } else {
-                "正在核对身份…"
-            }),
-            button("取消").on_press(Message::Account("account.cancel"))
-        ]
-        .spacing(16)
-        .into();
+        return column![button("取消").on_press(Message::Account("account.cancel"))]
+            .spacing(16)
+            .into();
     }
     if matches!(page.account["state"].as_str(), Some("pending" | "scanned")) {
         let mut content = column![text("使用红果扫码登录")].spacing(16);

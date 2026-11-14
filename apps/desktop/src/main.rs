@@ -45,6 +45,7 @@ enum Message {
     Autostart(bool),
     Select(Root),
     Navigate(Section),
+    ToggleModules,
     Fetch(String),
     Search,
     More,
@@ -113,6 +114,7 @@ struct App {
     activation: Activation,
     selected: Option<Root>,
     section: Section,
+    modules_return: Section,
     pages: BTreeMap<String, PageState>,
     busy: bool,
     error: Option<String>,
@@ -179,6 +181,7 @@ impl App {
             activation: Activation::default(),
             selected: None,
             section: Section::Content,
+            modules_return: Section::Content,
             pages: BTreeMap::new(),
             busy: false,
             error,
@@ -687,9 +690,16 @@ impl App {
                 self.error = None;
                 return Task::batch([self.save(), self.resume()]);
             }
+            Message::ToggleModules => {
+                let section = self.section.modules_target(self.modules_return);
+                return self.update(Message::Navigate(section));
+            }
             Message::Navigate(section) => {
                 if self.section == section {
                     return Task::none();
+                }
+                if section == Section::Modules {
+                    self.modules_return = self.section;
                 }
                 self.stop();
                 if let Section::Settings(Settings::Page) = section

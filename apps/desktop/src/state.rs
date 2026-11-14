@@ -120,6 +120,13 @@ impl PageState {
 }
 
 impl Section {
+    pub fn modules_target(self, previous: Self) -> Self {
+        if self == Self::Modules {
+            previous
+        } else {
+            Self::Modules
+        }
+    }
     pub fn select_page(&mut self, state: &PageState) {
         if matches!(self, Self::Settings(Settings::Page)) {
             *self = Self::Settings(state.last_settings.unwrap_or(Settings::Page));
@@ -130,6 +137,17 @@ impl Section {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn modules_toggle_returns_to_content_or_original_settings() {
+        for previous in [
+            Section::Content,
+            Section::Settings(Settings::Page),
+            Section::Settings(Settings::Display),
+        ] {
+            assert_eq!(previous.modules_target(Section::Content), Section::Modules);
+            assert_eq!(Section::Modules.modules_target(previous), previous);
+        }
+    }
     #[test]
     fn resume_only_fetches_interrupted_visible_sources() {
         let mut page = PageState::default();

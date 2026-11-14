@@ -24,3 +24,5 @@
 在线发布后可显式运行 `python -B scripts/verify/test-online-modules.py --host-dir <解压后的LazyBuddy目录> --report target/verification-release/online-modules.json`。它验证随包配置及真实签名下载，在同一宿主进程内安装新闻/红果及依赖，再卸载并回收运行时，不选内容页、不读取账号或请求上游。需要网络及正常Windows桌面会话，不加入常规离线CI。
 
 Windows下载问题需额外运行在线检查的 `--without-proxy-env` 模式，清除子进程代理环境变量，使用实际Windows系统代理，匹配资源管理器双击启动；不能只用手动设置HTTPS_PROXY的CLI成功证明桌面下载可用。
+
+公共框架改动运行 `python -B scripts/verify/test-shell-ui.py`（可加 `--dark`），只使用24来源的通用离线样例，验证功能页返回原设置/内容、矩形原生窗口区域及宽窄布局截图；截图和摘要在target/verification-ui。对当前用户前台窗口允许自然切换，只要求隔离宿主不抢占前台。来源滚动由Iced内嵌滚动条预留宽度，不通过隐藏文字规避遮挡。截图生成与已查看视觉分别记录。

@@ -173,6 +173,7 @@ impl App {
             .map(|category| Message::Navigate(Section::Settings(category))),
             "settings.back" => Some(Message::Navigate(Section::Content)),
             "modules.open" => Some(Message::Navigate(Section::Modules)),
+            "modules.toggle" => Some(Message::ToggleModules),
             "modules.refresh" => Some(Message::Reload),
             "modules.install" => args["id"]
                 .as_str()

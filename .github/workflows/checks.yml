@@ -53,6 +53,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/verify/test-host-lifecycle.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/verify/test-shell-ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/verify/test-catalog-assembly.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/verify/test-signing-key.py
