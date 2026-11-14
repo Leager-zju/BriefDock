@@ -4,7 +4,7 @@
 
 ## LB-20261113-01：LazyBuddy 模块化桌面应用
 
-- 状态：核心实现、分仓及隔离验证完成；真实账号待验收，签名模块与主程序预览发布进行中，未归档。
+- 状态：核心实现、分仓及隔离验证完成；真实账号待验收；签名目录、四个模块包及主程序预览发布完成，未归档。
 - 负责人/执行端：Leager / Windows Codex；日期：2026-11-14；分支：main。
 - 仓库：LazyBuddyDev/LazyBuddy、LazyBuddyDev/news-service、LazyBuddyDev/hongguo-service。自有代码MIT，Copyright(c)2026 Leager；第三方保留原许可。
 
@@ -18,7 +18,7 @@
 - `[√]` 拆分目录、CLI优先、定向单元/契约测试、临时产物清理与开发规范。
 - `[√]` 三个仓库统一归属LazyBuddyDev；按用户要求以当前代码建立无父初始提交，清理旧分支/标签，作为全新项目管理。
 - `[x]` 新命名空间首次手机扫码、安全保存与恢复，以及真实搜索、官方收藏列表、有限集数权限和节目音画同步验收。
-- `[x]` 维护者签名身份与签名目录上线、Windows二进制预览发布：已创建工作区外DPAPI保护身份并签署四包目录，正在验证及发布。未获额外授权不测试真实收藏/进度写入。
+- `[√]` 维护者签名身份、签名目录及四包上线，Windows x64主程序预览发布；源码构建与基础ZIP均默认携带可信公钥配置。未测试真实收藏/进度写入。
 
 验证证据：
 
@@ -29,6 +29,9 @@
 - 精简媒体包约18.5MiB；合成JPEG/H.264/H.265与AAC的实际帧、跳转、EOS及倍速保音高已有证据，见docs/media-runtime.md。它们不能替代真实账号与节目验收。
 - 当前代码在历史重建前已分别通过三个仓库CI；新初始提交的CI状态以各仓库Actions为准。
 
-- 2026-11-14 在线分发验证：四包及签名目录已公开，Pages目录匿名验签通过。首次真实客户端下载暴露ureq原生TLS未显式选择导致任务停滞，已统一配置NativeTls和下载超时，并补充本机无效TLS对端回归测试；再次验证中，新闻安装成功，红果依赖仍在核对。
+- 2026-11-14 在线分发验证：四包及签名目录已公开，Pages目录匿名验签通过。首次真实客户端下载暴露ureq原生TLS未显式选择导致任务停滞，已统一配置NativeTls和下载超时，并补充本机无效TLS对端回归测试；本机无效TLS对端回归通过；一次红果安装失败时仅保留既有新闻、未提交半套依赖，原因未确定。随后独立CLI完整下载成功，同一宿主进程通过新闻/红果及两个运行时的真实在线安装和卸载、无引用运行时回收；全程不启动内容服务或访问账号。
 
-阻塞与下一步：账号验收需用户手机扫码；本轮按用户授权完成签名分发，在线验证及发布结果待补。旧Git历史仅保留在本机忽略的tmp/git-history-backup恢复包，不上传到新项目。
+- 发布：主程序 [v2.0.0-preview.1](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/v2.0.0-preview.1)，模块 [modules-v0.1.0](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/modules-v0.1.0)；固定目录 https://lazybuddydev.github.io/LazyBuddy/modules/catalog.json。维护方式见docs/module-distribution.md。
+- 本轮宿主单元8项、模块管理原6项及新增TLS回归1项、签名身份/发布目录3项、目录组装1项通过；修复提交684ff8e的CI运行43554924626成功。最终打包宿主已实际加载公开目录；完整在线安装报告在target/verification-release/online-modules.json，发布摘要在target/verification-release/release.json。
+
+阻塞与下一步：账号验收需用户手机扫码，分发已完成；下一步按独立授权进行真实账号只读验收。旧Git历史仅保留在本机忽略的tmp/git-history-backup恢复包，不上传到新项目。
