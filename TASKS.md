@@ -34,6 +34,8 @@
 - 发布：主程序 [v2.0.0-preview.1](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/v2.0.0-preview.1)，模块 [modules-v0.1.0](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/modules-v0.1.0)；固定目录 https://lazybuddydev.github.io/LazyBuddy/modules/catalog.json。维护方式见docs/module-distribution.md。
 - 本轮宿主单元8项、模块管理原6项及新增TLS回归1项、签名身份/发布目录3项、目录组装1项通过；修复提交684ff8e的CI运行43554924626成功。最终打包宿主已实际加载公开目录；完整在线安装报告在target/verification-release/online-modules.json，发布摘要在target/verification-release/release.json。
 
-- 2026-11-14 用户报告F:/LazyBuddy红果安装失败：核对EXE与预览1一致，已装新闻保留；桌面进程无代理环境变量，Windows手动系统代理已启用。独立数据目录复现无环境代理时package download failed，显式环境代理对照120秒仍未完成（不能作为成功证据）。启用官方win-system-proxy后，无代理环境变量的完整真实在线安装/卸载、依赖回收验证通过；8项模块管理单元测试及CI43556714005通过。用户已明确授权本地替换、重启及安装红果；F:/LazyBuddy已换为修复版，保留新闻，生产安装中媒体包持续接收至约13MB后命中global超时，确认原300秒总预算不足以支持当前慢速网络。已改为每包1800秒/单次读取60秒，计划以签名目录校验现有包完成本机安装，避免再次下载大包。现有测试包和校验文件已覆盖，来源16aa496，未创建新预览发布；维护方式见AGENTS与模块分发文档。
+- 2026-11-14 用户报告F:/LazyBuddy红果安装失败：核对EXE与预览1一致，已装新闻保留；桌面进程无代理环境变量，Windows手动系统代理已启用。独立数据目录复现无环境代理时package download failed，显式环境代理对照120秒仍未完成（不能作为成功证据）。启用官方win-system-proxy后，无代理环境变量的完整真实在线安装/卸载、依赖回收验证通过；8项模块管理单元测试及CI43556714005通过。用户已明确授权本地替换、重启及安装红果；F:/LazyBuddy已换为修复版，保留新闻，生产安装中媒体包持续接收至约13MB后命中global超时，确认原300秒总预算不足以支持当前慢速网络。已改为每包1800秒/单次读取60秒，已通过签名与哈希核对的现有模块包完成F:/LazyBuddy安装，确认news/hongguo/python-runtime/media-runtime均在注册表中，保留新闻及用户数据；正常重启后显示功能管理，未读取真实账号或测试播放。现有测试包和校验文件已覆盖，最终覆盖来源8585eba（慢网预算修复），未创建新预览发布；维护方式见AGENTS与模块分发文档。
 
 阻塞与下一步：账号验收需用户手机扫码，分发已完成；下一步按独立授权进行真实账号只读验收。旧Git历史仅保留在本机忽略的tmp/git-history-backup恢复包，不上传到新项目。
+
+- 本机修复证据：target/verification-release/installed-system-proxy.json；安装方式为校验过签名目录的本地发布包，不冒充慢速网络完整下载成功。无环境代理的独立在线回归见system-proxy-modules.json，8项模块管理测试通过；最终慢网构建CI43557864363成功，既有测试入口已覆盖为8585eba，服务器包摘要4d231e6feae2173be0cad9085da743f35a4bd782ab1fcd72bef5b202e557dbb6与本地一致；没有新建预览发布。
