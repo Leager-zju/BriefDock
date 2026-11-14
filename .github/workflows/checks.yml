@@ -59,7 +59,7 @@ jobs:
         run: |
           $base=$env:BASE_SHA
           if (!$base -or $base -match '^0+$') { $base='HEAD^' }
-          $changed=@(git diff --name-only $base HEAD | Where-Object { $_ -like 'apps/shell-prototype/*' -or $_ -eq 'scripts/run-shell-prototype.ps1' })
+          $changed=@(git diff --name-only $base HEAD | Where-Object { $_ -like 'apps/shell-prototype/*' -or $_ -like 'crates/media-ipc/*' -or $_ -like 'crates/service-client/*' -or $_ -eq 'scripts/run-shell-prototype.ps1' })
           "run=$($changed.Count -gt 0)".ToLower() >> $env:GITHUB_OUTPUT
       - uses: actions/setup-node@v4
         if: steps.changed.outputs.run == 'true'

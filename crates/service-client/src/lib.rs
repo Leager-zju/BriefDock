@@ -24,6 +24,9 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn pid(&self) -> u32 {
+        self.child.id()
+    }
     pub fn start(executable: &Path) -> io::Result<Self> {
         Self::start_with_args(executable, &[])
     }

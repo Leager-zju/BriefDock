@@ -15,7 +15,9 @@ use std::{
 };
 
 pub struct Frame {
+    /// GStreamer IPC system presentation timestamp, not a media timeline position.
     pub pts_ns: u64,
+    pub adapter_luid: i64,
     pub(crate) handle: OwnedHandle,
     pub(crate) uploaded: AtomicBool,
     release: Mutex<Option<mpsc::Sender<bool>>>,
@@ -116,6 +118,7 @@ impl Receiver {
                             let handle = importer.receive_handle(texture_handle, fence_value)?;
                             let frame = Arc::new(Frame {
                                 pts_ns,
+                                adapter_luid,
                                 handle,
                                 uploaded: AtomicBool::new(false),
                                 release: Mutex::new(Some(release.clone())),

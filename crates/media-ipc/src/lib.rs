@@ -3,6 +3,8 @@
 // This implementation exchanges metadata/OS handles only; video pixels are shared textures.
 use std::io::{self, Read, Write};
 
+#[cfg(all(windows, feature = "composition"))]
+pub mod composition;
 #[cfg(all(windows, feature = "gpu"))]
 pub mod gpu;
 #[cfg(all(windows, feature = "wgpu"))]
@@ -23,6 +25,7 @@ pub enum Packet {
         caps: String,
     },
     Frame {
+        /// Absolute system presentation time; never interpret this as media seek position.
         pts_ns: u64,
         pitch: u32,
         offsets: [u32; 4],

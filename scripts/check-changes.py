@@ -53,10 +53,14 @@ def plan(paths, root=ROOT):
     if 'Cargo.lock' in paths or 'Cargo.toml' in paths:
         checks.update(members.values())  # Compile interfaces; do not run unrelated tests.
     commands = []
+    composition = any(name.startswith('crates/media-ipc/') for name in paths)
     if checks:
-        commands.append(['cargo', 'check', '--locked', *[arg for package in sorted(checks) for arg in ('-p', package)]])
+        commands.append(['cargo', 'check', '--locked', *[arg for package in sorted(checks) for arg in ('-p', package)],
+                         *(['--features', 'lazybuddy-media-ipc/composition'] if composition else [])])
     for package, module in sorted(units):
-        commands.append(['cargo', 'test', '--locked', '-p', package, *([module] if module else [])])
+        commands.append(['cargo', 'test', '--locked', '-p', package,
+                         *(['--features', 'composition'] if composition and package == 'lazybuddy-media-ipc' else []),
+                         *([module] if module else [])])
     for name in sorted(python_tests):
         commands.append([sys.executable, '-B', name])
     return commands

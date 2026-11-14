@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{ops::Range, path::PathBuf, sync::Mutex};
 use tauri::{Emitter, Manager};
 mod dock;
+mod native;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -57,16 +58,17 @@ fn transition(
     state: tauri::State<Mutex<Model>>,
     window: tauri::WebviewWindow,
 ) -> View {
-    state
-        .lock()
-        .unwrap()
-        .transition(root, section, visible && !dock::is_docked(&window))
+    let visible = visible && !dock::is_docked(&window);
+    let media_page = root == Root::Hongguo && section == Section::Content;
+    let view = state.lock().unwrap().transition(root, section, visible);
+    window.state::<native::State>().context(media_page, visible);
+    view
 }
 #[tauri::command]
 fn snapshot(state: tauri::State<Mutex<Model>>, window: tauri::WebviewWindow) -> serde_json::Value {
     let state = state.lock().unwrap();
     serde_json::json!({"view":state.view,"feed_requests":state.feed_requests,
-        "media_route":"browser_h264_sample", "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
+        "media_route":if native::mode(){"native_d3d12"}else{"browser_h264_sample"},"desktop":dock::snapshot(&window)})
 }
 #[tauri::command]
 async fn demo_feed(
@@ -116,7 +118,10 @@ fn visibility(window: &tauri::WebviewWindow, visible: bool) {
     let mut state = state.lock().unwrap();
     let view = state.view.clone();
     let changed = view.visible != visible;
+    let media_page = view.root == Root::Hongguo && view.section == Section::Content;
     state.transition(view.root, view.section, visible);
+    drop(state);
+    window.state::<native::State>().context(media_page, visible);
     if changed {
         let _ = window.emit("shell-visibility", visible);
     }
@@ -143,7 +148,7 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
         }
         "show" => show_without_focus(&window)?,
         "expand" => dock::expand(&window).map_err(|_| "expand failed")?,
-        "close" => window.app_handle().exit(0),
+        "close" => request_exit(&window),
         _ => return Err("unknown window action".into()),
     }
     Ok(())
@@ -253,17 +258,34 @@ fn clip_response(request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Respon
     }
     response.body(bytes).unwrap()
 }
+fn request_exit(window: &tauri::WebviewWindow) {
+    let Some(completed) = window.state::<native::State>().shutdown() else {
+        return;
+    };
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn(async move {
+        completed.await;
+        app.exit(0);
+    });
+}
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(Model::default()))
         .manage(Mutex::new(dock::Dock::default()))
+        .manage(native::State::default())
         .invoke_handler(tauri::generate_handler![
             transition,
             snapshot,
             demo_feed,
             contract_templates,
             window_action,
-            resize
+            resize,
+            native::native_open,
+            native::native_control,
+            native::native_layout,
+            native::native_snapshot,
+            native::native_close,
+            native::native_probe
         ])
         .register_uri_scheme_protocol("sample", |_, request| clip_response(&request))
         .setup(|app| {
@@ -286,8 +308,11 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                window.app_handle().exit(0);
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    request_exit(&webview);
+                }
             }
             if let tauri::WindowEvent::Resized(_) = event {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {

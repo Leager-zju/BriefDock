@@ -8,6 +8,7 @@ edition = "2024"
 gpu = ["dep:windows"]
 wgpu = ["gpu", "dep:wgpu", "dep:futures"]
 ui = ["wgpu", "dep:iced"]
+composition = ["wgpu", "wgpu/wgsl", "windows/Win32_Graphics_DirectComposition"]
 
 [dependencies]
 wgpu = { version = "27", default-features = false, features = ["dx12", "std"], optional = true }

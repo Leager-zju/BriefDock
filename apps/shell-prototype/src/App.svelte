@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import Icon from './Icon.svelte';
+  import NativePlayer from './NativePlayer.svelte';
   import { accepts, active, formatTime, toggleSection, moduleTarget, type Root, type Section, type View } from './lifecycle';
   import logoUrl from '../../../assets/lazybuddy.svg';
   type Source = { id: string; name: string; tag: string; color: string; items: string[] };
@@ -24,6 +25,8 @@
   let loading = $state(false);
   let category = $state('page');
   let video = $state<HTMLVideoElement>(undefined!);
+  let nativeVideo = $state(false);
+  let nativePlayer = $state<NativePlayer>();
   let playing = $state(false);
   let position = $state(0);
   let duration = $state(0);
@@ -46,7 +49,7 @@
     if (video && callback !== undefined) video.cancelVideoFrameCallback(callback);
     callback = undefined;
   }
-  function pause() { if (video) video.pause(); stopFrames(); playing = false; }
+  function pause() { nativePlayer?.pause(); if (video) video.pause(); stopFrames(); playing = false; }
   function mediaState(event: Event) {
     if (event.currentTarget !== video) return;
     playing = !video.paused;
@@ -99,6 +102,7 @@
     void change(root, moduleTarget(section, modulesReturn));
   }
   async function togglePlayback() {
+    if (nativeVideo) { await nativePlayer?.toggle(); return; }
     if (!active(view, 'hongguo') || mediaMode !== 'player' || !video) return;
     if (!video.paused) { pause(); return; }
     const element = video;
@@ -125,7 +129,7 @@
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement) return;
     if (!active(view, 'hongguo') || mediaMode !== 'player') return;
     if (event.code === 'Space') { event.preventDefault(); void togglePlayback(); }
-    if (event.code === 'ArrowRight' || event.code === 'ArrowLeft') { event.preventDefault(); video.currentTime = Math.max(0, Math.min(duration, video.currentTime + (event.code === 'ArrowRight' ? 5 : -5))); }
+    if (event.code === 'ArrowRight' || event.code === 'ArrowLeft') { event.preventDefault(); const delta = event.code === 'ArrowRight' ? 5 : -5; if (nativeVideo) nativePlayer?.seekRelative(delta); else video.currentTime = Math.max(0, Math.min(duration, video.currentTime + delta)); }
   }
   onMount(() => {
     const unlisteners: (() => void)[] = [];
@@ -149,6 +153,7 @@
       subscribe<string>('shell-error', value => { notice = value; })
       ]).then(() => { eventsReady = true; }).catch(() => { notice = '窗口通知订阅失败，请重新打开原型。'; });
       void call('contract_templates').then(() => { bridge = true; });
+      void call<{ media_route: string }>('snapshot').then(value => { nativeVideo = value.media_route === 'native_d3d12'; });
       void change();
     } else notice = '浏览器设计预览 · 原生交互请启动独立桌面原型';
     return () => { disposed = true; pause(); unlisteners.forEach(dispose => dispose()); document.removeEventListener('visibilitychange', visibility); };
@@ -156,7 +161,7 @@
 </script>
 
 <svelte:window onkeydown={mediaKey}/>
-<div class:dark class:docked class="app-shell" data-testid="shell" data-root={root} data-section={section} data-visible={visible} data-docked={docked} data-events-ready={eventsReady} data-frames={frameCount}>
+<div class:dark class:docked class:native-media-active={nativeVideo && root === 'hongguo' && section === 'content' && mediaMode === 'player'} class="app-shell" data-testid="shell" data-root={root} data-section={section} data-visible={visible} data-docked={docked} data-events-ready={eventsReady} data-frames={frameCount}>
   {#if docked}<button class="dock-button" aria-label="展开 LazyBuddy" title="展开 LazyBuddy" onclick={() => action('expand')}><img src={logoUrl} alt=""/></button>{/if}
   <header class="toolbar" data-tauri-drag-region>
     <div class="identity" data-tauri-drag-region><span class="logo" data-tauri-drag-region>LB<span>·</span></span><strong data-tauri-drag-region>LazyBuddy</strong><span class="divider"></span>
@@ -217,12 +222,16 @@
     {:else}
       {#if mediaMode === 'player'}
         <section class="player-page">
+          {#if nativeVideo}
+            <NativePlayer bind:this={nativePlayer} back={returnToList} favorite={favoriteSample} favorited={sampleFavorite} changed={state => { playing = state.playing; frameCount = state.frames; }} failed={error => notice = error}/>
+          {:else}
           <div class="video-stage" class:paused={!playing}>
             <video bind:this={video} src="http://sample.localhost/clip" preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => position = video.currentTime} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onplay={mediaState} onpause={mediaState} onended={mediaState} onerror={() => notice = '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
             <div class="video-top"><button class="video-back" aria-label="返回列表" onclick={returnToList}><Icon name="arrow" size={17}/></button><span class="video-title">本地播放样例</span><button class="video-favorite" aria-label={sampleFavorite ? '取消收藏样例' : '收藏样例'} onclick={favoriteSample}><Icon name="star" size={18}/></button></div>
             {#if !playing}<button class="center-play" aria-label="播放样例" onclick={togglePlayback}><Icon name="play" size={28}/></button>{/if}
             <div class="video-bottom"><input class="seek" aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.05" value={position} oninput={event => position = Number(event.currentTarget.value)} onchange={() => video.currentTime = position}/><div class="video-controls"><button aria-label={playing ? '暂停' : '播放'} onclick={togglePlayback}><Icon name={playing ? 'pause' : 'play'}/></button><span class="time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><span class="control-spacer"></span><button aria-label={muted ? '取消静音' : '静音'} onclick={() => muted = !muted}><Icon name={muted ? 'mute' : 'volume'}/></button><input class="volume" aria-label="音量" type="range" min="0" max="1" step="0.05" bind:value={volume}/></div></div>
           </div>
+          {/if}
         </section>
       {:else}
         <section class="media-library">

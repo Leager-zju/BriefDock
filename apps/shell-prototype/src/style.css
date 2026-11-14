@@ -1,7 +1,7 @@
 :root {
   font-family: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
   color: #27352f;
-  background: #f5f6f3;
+  background: transparent;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -990,6 +990,8 @@ li button:hover {
 .module-heading h1 { margin: 0; }
 .module-heading button { flex-shrink: 0; }
 .app-shell.docked { border: 0; background: transparent; }
+.app-shell.native-media-active, .native-stage { background: transparent; }
+.native-stage .video-controls select { color: white; background: #2229; border: 0; width: 64px; }
 .app-shell.docked > :not(.dock-button) { display: none; }
 .dock-button { width: 100%; height: 100%; min-height: 0; padding: 7px; border: 1.5px solid var(--accent); border-radius: 50%; background: var(--toolbar); }
 .dock-button img { width: 100%; height: 100%; display: block; }

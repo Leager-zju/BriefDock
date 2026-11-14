@@ -4,9 +4,36 @@
 
 ## 当前结论
 
-Web技术适合实现统一排版、响应式布局、浅深主题和视频覆盖控件；现有Rust模块协议可继续使用。但尚不满足整体替换宿主的门槛：原生D3D12共享纹理未接入网页，WebView2也引入了需要单独评估的常驻进程与内存。
+最新方向：服务提供受控、可供浏览器读取的媒体资源，前端使用HTML video解码、同步及绘制控件，优先复用现有私有Range MP4输入层。原生D3D12合成实验保留在codex/lazybuddy-native-web-video，不合入新的默认路线。浏览器资源接口、真实编码兼容、访问控制及隐藏停止下载仍须完成验证；不能仅凭合成MP4成功判定可替换生产播放。
+
+Web技术适合实现统一排版、响应式布局、浅深主题和视频覆盖控件；现有Rust模块协议可继续使用。独立分支已验证原生D3D12共享纹理在透明WebView下呈现，覆盖控件、透明度、缩放与静默成立。整体替换仍待暂停跳转画面刷新、真实业务入口接线及完整资源预算确认；WebView2增加的常驻进程与内存需要单独评估。
 
 因此先交付独立可运行原型供视觉比较，不自动重写正式宿主。若保留当前视频链路是前提，须先证明稳定的原生合成方案能满足覆盖控件、透明度、缩放与静默，再批准完整迁移。界面风格本身也可回用到Iced，不必等同于采用WebView。
+
+## 原生视频呈现闭环
+
+原生候选使用现有独立media-runtime包及service-client。GStreamer仍在所属Windows Job的外部进程解码；media-ipc接收D3D12共享句柄与fence，按生产端LUID选择相同适配器，GPU复制到宿主保留纹理，完成后才确认生产端释放。wgpu27将该纹理绘入DirectComposition交换链，放在透明WebView子窗口下；Svelte只画覆盖控件。正常路径无逐帧JavaScript像素、CPU图片或GStreamer链接，也不依赖ExperimentalTextureStream。
+
+独立媒体线程处理取帧、复制、呈现及控制，UI线程不等待GPU。隐藏保留暂停管线及最后帧，展开只重绘，不自播；设置或切根页面释放自身解码进程。显式播放期间在帧事件外最多每250ms采样一次真实状态以接收末帧之后的EOS，暂停、隐藏、离页和EOS后无该采样。缩放只改合成表面及视觉位置。
+
+2026-11-14实测：1280×720 H.264与640×360 H.265/AAC合成MP4均经已发布media-runtime真实解码并显示。检查连续帧、暂停冻结、跳转后继续、1.5倍速推进、0/0.5/1透明度的预乘RGBA、缩放保持同一PID与打开次数、贴边暂停/恢复不自播、设置释放进程与返回暂停，以及真实EOS后停止。PrintWindow整窗截图包含原生画面和HTML覆盖控件，已实际查看；不以CDP截图替代合成证据。AAC保持静音，本轮没有证明音频输出质量、音高或真实节目音画同步。
+
+初始化曾出现只枚举到软件适配器：接收端先建立D3D12设备，再由调试构建的wgpu启用原生调试层，会使已有设备失效。按[微软EnableDebugLayer约束](https://learn.microsoft.com/en-us/windows/win32/api/d3d12sdklayers/nf-d3d12sdklayers-id3d12debug-enabledebuglayer)，本消费者不在既有设备之后启用原生调试层，仍保留wgpu自身验证。未采用软件适配器回退。
+
+已知未完成边界：GStreamer1.26.11的[d3d12ipcsink实现](https://github.com/GStreamer/gstreamer/blob/1.26.11/subprojects/gst-plugins-bad/sys/d3d12/gstd3d12ipcsink.cpp)仅发送render帧，未发送暂停preroll。暂停seek可完成管线跳转，但保留旧画面，继续后才得到新帧；不能把position返回成功写成暂停画面已刷新。IPC名为pts的字段实际是系统呈现时钟，候选状态分别报告frame_timestamp_ns和管线position，没有宣称取得实际媒体帧PTS。正式切换前须在独立媒体服务中完善暂停帧与可核对的媒体PTS/seek完成元数据，不能在宿主悄悄播放或修改静音来获取一帧。
+
+原生入口仅显式本地合成模式启用，不替换普通浏览器样例或生产宿主，不允许失败后回退HTML视频。设置LAZYBUDDY_NATIVE_FIXTURE=1、LAZYBUDDY_NATIVE_FIXTURE_URL=http://127.0.0.1:<port>/sample.mp4，以及LAZYBUDDY_NATIVE_PACKAGES为显式包目录；后者只读取media-runtime与python-runtime清单/入口，不导入另一个仓库源码。测试驱动自建该固定Range资源并关闭自身进程，不读取真实账号。
+
+```powershell
+$env:CARGO_TARGET_DIR="$PWD/target/qa-native-video/build"
+npm --prefix apps/shell-prototype run build
+cargo build --locked --manifest-path apps/shell-prototype/src-tauri/Cargo.toml
+cargo test --locked --manifest-path apps/shell-prototype/src-tauri/Cargo.toml native::tests
+cargo test --locked -p lazybuddy-media-ipc --features composition composition::tests
+node apps/shell-prototype/tests/native-media.mjs target/qa-native-video/build/debug/lazybuddy-shell-prototype.exe
+```
+
+驱动默认本机target/service-exports/lazybuddy-hongguo-service/target/packages-current，可传入短小合成MP4作为第三个命令行参数；包不存在时应先准备明确的运行时包，不能以本机服务源码替代。证据在target/verification-native-video的h264.json、h265-aac.json与对应整窗截图。当前验证为调试构建，未作优化版资源预算、跨DPI/显示器、设备丢失或真实节目验收。
 
 ## 原型范围
 

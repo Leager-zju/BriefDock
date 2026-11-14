@@ -12,6 +12,10 @@ spec.loader.exec_module(selection)
 
 
 class Selection(unittest.TestCase):
+    def test_native_composition_tests_enable_their_feature(self):
+        commands=selection.plan(['crates/media-ipc/src/composition.rs'])
+        self.assertIn(['cargo','test','--locked','-p','lazybuddy-media-ipc','--features','composition','composition::tests'],commands)
+        self.assertTrue(all('--workspace' not in command for command in commands))
     def test_new_branch_zero_before_compares_main_instead_of_all_files(self):
         with tempfile.TemporaryDirectory(prefix='qa-selection-') as temporary:
             root = Path(temporary)
