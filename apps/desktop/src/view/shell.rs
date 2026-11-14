@@ -81,7 +81,7 @@ pub(super) fn toolbar(app: &App) -> Element<'_, Message> {
     let refresh = (app.section == Section::Modules)
         .then(|| button("刷新").on_press_maybe((!app.manager_busy).then_some(Message::Reload)));
     let actions = actions.align_y(iced::Center);
-    let title = iced::widget::mouse_area(text("LazyBuddy").size(22)).on_press(Message::Drag);
+    let title = text("LazyBuddy").size(22);
     let select = pick_list(app.roots.clone(), app.selected.clone(), Message::Select)
         .placeholder("选择功能")
         .width(160)
@@ -230,10 +230,15 @@ pub(super) fn frame<'a>(
     page: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let opacity = app.preferences.background_opacity;
-    let toolbar = container(toolbar)
-        .padding([12, 20])
-        .width(Fill)
-        .style(move |theme| chrome(theme, opacity, false));
+    // Children handle their own clicks first; the remaining toolbar surface drags.
+    let toolbar = iced::widget::mouse_area(
+        container(toolbar)
+            .padding([12, 20])
+            .width(Fill)
+            .style(move |theme| chrome(theme, opacity, false)),
+    )
+    .on_press(Message::Drag)
+    .interaction(iced::mouse::Interaction::Grab);
     let page = container(page).padding(20).width(Fill).height(Fill);
     let status = container(
         text(status_text(app))
