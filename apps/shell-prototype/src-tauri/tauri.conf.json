@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LazyBuddy Shell Prototype",
+  "version": "0.1.0",
+  "identifier": "dev.lazybuddy.shell-prototype",
+  "build": { "frontendDist": "../dist", "devUrl": "http://127.0.0.1:1420" },
+  "app": {
+    "windows": [{ "label": "main", "title": "LazyBuddy · 界面原型", "width": 1000, "height": 720, "minWidth": 440, "minHeight": 440, "decorations": false, "shadow": false, "visible": false, "focus": false }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' http://sample.localhost; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'",
+      "capabilities": [{ "identifier": "shell", "windows": ["main"], "permissions": ["core:window:allow-start-dragging"] }]
+    }
+  },
+  "bundle": { "active": false, "icon": ["../../../assets/lazybuddy.ico"] }
+}

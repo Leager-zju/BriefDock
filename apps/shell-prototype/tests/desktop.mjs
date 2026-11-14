@@ -1,0 +1,107 @@
+// Explicit actual-WebView verification; never selected by the feature unit runner.
+import assert from 'node:assert/strict';
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import net from 'node:net';
+import { chromium } from 'playwright-core';
+const here=path.dirname(fileURLToPath(import.meta.url));
+const root=path.resolve(here,'../../..');
+const exe=path.resolve(process.argv[2] ?? path.join(root,'target/qa-web-shell/build/release/lazybuddy-shell-prototype.exe'));
+const output=path.join(root,'target/verification-shell');
+await mkdir(output,{recursive:true});
+const scratch=path.join(root,'target/qa-web-shell/verification-profile');
+await mkdir(scratch,{recursive:true});
+const server=net.createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const port=server.address().port;await new Promise(resolve=>server.close(resolve));
+const env={...process.env,LAZYBUDDY_PROTOTYPE_PROBE:'1',WEBVIEW2_USER_DATA_FOLDER:scratch,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`};
+delete env.LAZYBUDDY_PROTOTYPE_CLIP;
+if(!existsSync(path.join(path.dirname(exe),'sample.mp4')))env.LAZYBUDDY_PROTOTYPE_CLIP=path.join(root,'target/qa-web-shell/sample.mp4');
+const child=spawn(exe,[],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});
+let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);
+let browser,page;
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(predicate,ms=20000){const deadline=Date.now()+ms;while(Date.now()<deadline){if(await predicate())return;await delay(100);}throw Error('prototype condition timeout');}
+function metrics(pid){return JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(here,'process-metrics.ps1'),'-RootProcessId',String(pid)],{encoding:'utf8',windowsHide:true}));}
+async function resourceSample(){const first=metrics(child.pid);await delay(3000);const last=metrics(child.pid);return {...last,sample_duration_ms:last.sampled_at_ms-first.sampled_at_ms,cpu_one_core_percent:100*(last.cpu_seconds_sum-first.cpu_seconds_sum)/((last.sampled_at_ms-first.sampled_at_ms)/1000)};}
+const errors=[];const external=[];
+try{
+  await until(async()=>{if(child.exitCode!==null)throw Error(`prototype exited: ${stderr}`);try{return (await fetch(`http://127.0.0.1:${port}/json/version`)).ok;}catch{return false;}},45000);
+  browser=await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  await until(async()=>{page=browser.contexts().flatMap(context=>context.pages()).find(item=>item.url().includes('tauri.localhost'));return !!page;});
+  page.on('pageerror',error=>errors.push(String(error)));
+  page.on('request',request=>{if(/^https?:/.test(request.url())&&!/^http:\/\/(tauri|sample|ipc)\.localhost/.test(request.url()))external.push(request.url());});
+  const invoke=(command,args={})=>page.evaluate(([command,args])=>window.__TAURI_INTERNALS__.invoke(command,args),[command,args]);
+  await page.waitForSelector('[data-testid=shell]');
+  await invoke('window_action',{action:'show'});
+  await until(async()=>await page.locator('.source-card').count()===3);
+  assert.equal((await invoke('snapshot')).feed_requests,1);
+  await page.screenshot({path:path.join(output,'news-light.png')});
+  // Repeated current-root selection is retained rather than refetched.
+  await page.getByLabel('选择功能').selectOption('news');
+  await delay(150);assert.equal((await invoke('snapshot')).feed_requests,1);
+  await page.getByRole('button',{name:'功能',exact:true}).click();
+  await page.getByRole('heading',{name:'可用功能',exact:true}).waitFor();
+  await page.screenshot({path:path.join(output,'modules.png')});
+  await page.getByRole('button',{name:'功能',exact:true}).click();
+  assert.equal(await page.locator('[data-testid=shell]').getAttribute('data-section'),'content');
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.getByRole('button',{name:'显示设置',exact:true}).click();
+  await page.getByRole('button',{name:'切换深色',exact:true}).click();
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.screenshot({path:path.join(output,'news-dark.png')});
+  await page.getByLabel('选择功能').selectOption('hongguo');
+  await page.waitForFunction(()=>document.querySelector('video')?.duration>0);
+  const capabilities=await page.evaluate(()=>({user_agent:navigator.userAgent,h264:document.querySelector('video').canPlayType('video/mp4; codecs="avc1.42E01E"'),hevc:document.querySelector('video').canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"'),webview_texture_stream:typeof window.chrome?.webview?.getTextureStream,video_frame_callback:typeof HTMLVideoElement.prototype.requestVideoFrameCallback}));
+  await page.getByRole('button',{name:'播放样例',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('video').currentTime>.6);
+  await page.getByRole('button',{name:'暂停',exact:true}).click();
+  const frame=await page.evaluate(()=>{const video=document.querySelector('video');const canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0);const bytes=ctx.getImageData(0,0,canvas.width,canvas.height).data;let colored=0;for(let i=0;i<bytes.length;i+=4){if(bytes[i+1]>bytes[i]+5)colored++;}return {width:video.videoWidth,height:video.videoHeight,decoded_frames:video.getVideoPlaybackQuality().totalVideoFrames,colored_pixels:colored};});
+  assert.equal(frame.width,1280);assert.equal(frame.height,720);assert.ok(frame.decoded_frames>3);assert.ok(frame.colored_pixels>10000);
+  await page.screenshot({path:path.join(output,'video-dark.png')});
+  await page.getByLabel('播放进度',{exact:true}).evaluate(input=>{input.value='4';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});
+  await page.waitForFunction(()=>Math.abs(document.querySelector('video').currentTime-4)<.15);
+  await page.getByRole('button',{name:'播放样例',exact:true}).click();
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  const before=(await invoke('snapshot')).feed_requests;
+  await delay(500);assert.equal((await invoke('snapshot')).feed_requests,before);
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('video').paused);
+  await page.getByRole('button',{name:'播放样例',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('video').paused);
+  await invoke('window_action',{action:'hide'});
+  await page.waitForFunction(()=>document.querySelector('video').paused);
+  const paused=await page.evaluate(()=>({time:document.querySelector('video').currentTime,frames:document.querySelector('[data-testid=shell]').dataset.frames}));
+  const hidden=await resourceSample();
+  const after=await page.evaluate(()=>({time:document.querySelector('video').currentTime,frames:document.querySelector('[data-testid=shell]').dataset.frames}));
+  assert.ok(Math.abs(paused.time-after.time)<.1);assert.equal(after.frames,paused.frames);assert.equal((await invoke('snapshot')).feed_requests,before);
+  await invoke('window_action',{action:'show'});
+  assert.equal(await page.locator('video').evaluate(video=>video.paused),true);
+  await page.getByRole('button',{name:'播放样例',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('video').paused);
+  await invoke('window_action',{action:'minimize'});
+  await page.waitForFunction(()=>document.querySelector('video').paused);
+  await invoke('window_action',{action:'show'});
+  assert.equal(await page.locator('video').evaluate(video=>video.paused),true);
+  await page.getByLabel('选择功能').selectOption('news');
+  assert.equal((await invoke('snapshot')).feed_requests,1);
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  await page.getByRole('button',{name:'新闻设置',exact:true}).click();
+  await invoke('resize',{width:460,height:580});
+  await page.waitForFunction(()=>window.innerWidth===460);
+  await page.screenshot({path:path.join(output,'settings-narrow.png')});
+  assert.equal(await page.locator('body').evaluate(body=>body.scrollWidth>window.innerWidth),false);
+  const clipped=await page.locator('.source-setting button').evaluateAll(buttons=>buttons.some(button=>{const box=button.getBoundingClientRect();return box.right>innerWidth-8;}));assert.equal(clipped,false);
+  await page.getByRole('button',{name:'关于我们',exact:true}).click();
+  const idle=await resourceSample();
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  const report={passed:true,actual_webview:true,frontend_unit_tests:3,rust_unit_tests:3,three_region_shell:true,modules_toggle:true,narrow_settings_unclipped:true,actual_h264_frame:frame,seek_verified:true,hidden_paused:true,minimized_paused:true,hidden_callback_stopped:true,restore_autoplay:false,inactive_page_request_count_unchanged:true,capabilities,idle,hidden,native_d3d12_texture_integrated:false,real_account_tested:false,production_install_changed:false,notes:['HTML video validates browser decoding and CSS overlay only; native GPU texture integration is still a migration gate.','Working-set sum may double-count shared pages. CPU is percent of one logical core over a short sample.']};
+  await writeFile(path.join(output,'desktop.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}finally{
+  if(page)await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('window_action',{action:'close'})).catch(()=>{});
+  if(browser)await browser.close().catch(()=>{});
+  if(child.exitCode===null){await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(10000)]);if(child.exitCode===null)child.kill();}
+  if(stderr)await writeFile(path.join(output,'stderr.txt'),stderr);
+}

@@ -44,3 +44,52 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/check-changes.py --base "$env:BASE_SHA"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+  shell-prototype:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect prototype changes
+        id: changed
+        shell: pwsh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          $base=$env:BASE_SHA
+          if (!$base -or $base -match '^0+$') { $base='HEAD^' }
+          $changed=@(git diff --name-only $base HEAD | Where-Object { $_ -like 'apps/shell-prototype/*' -or $_ -eq 'scripts/run-shell-prototype.ps1' })
+          "run=$($changed.Count -gt 0)".ToLower() >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-node@v4
+        if: steps.changed.outputs.run == 'true'
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/shell-prototype/package-lock.json
+      - uses: actions/cache@v4
+        if: steps.changed.outputs.run == 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            target/qa-web-shell/build
+          key: shell-${{ runner.os }}-${{ hashFiles('apps/shell-prototype/src-tauri/Cargo.lock') }}
+      - name: Prototype-only checks
+        if: steps.changed.outputs.run == 'true'
+        working-directory: apps/shell-prototype
+        shell: pwsh
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/qa-web-shell/build
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
