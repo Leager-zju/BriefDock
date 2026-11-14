@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::{ops::Range, path::PathBuf, sync::Mutex};
 use tauri::{Emitter, Manager};
+mod dock;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -54,14 +55,18 @@ fn transition(
     section: Section,
     visible: bool,
     state: tauri::State<Mutex<Model>>,
+    window: tauri::WebviewWindow,
 ) -> View {
-    state.lock().unwrap().transition(root, section, visible)
+    state
+        .lock()
+        .unwrap()
+        .transition(root, section, visible && !dock::is_docked(&window))
 }
 #[tauri::command]
-fn snapshot(state: tauri::State<Mutex<Model>>) -> serde_json::Value {
+fn snapshot(state: tauri::State<Mutex<Model>>, window: tauri::WebviewWindow) -> serde_json::Value {
     let state = state.lock().unwrap();
     serde_json::json!({"view":state.view,"feed_requests":state.feed_requests,
-        "media_route":"browser_h264_sample", "native_texture_integrated":false})
+        "media_route":"browser_h264_sample", "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
 }
 #[tauri::command]
 async fn demo_feed(
@@ -106,6 +111,7 @@ fn contract_templates() -> serde_json::Value {
     ])
 }
 fn visibility(window: &tauri::WebviewWindow, visible: bool) {
+    let visible = visible && !dock::is_docked(window);
     let state = window.state::<Mutex<Model>>();
     let mut state = state.lock().unwrap();
     let view = state.view.clone();
@@ -116,6 +122,7 @@ fn visibility(window: &tauri::WebviewWindow, visible: bool) {
     }
 }
 fn show_without_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
+    dock::expand(window).map_err(|_| "expand failed")?;
     let hwnd = window.hwnd().map_err(|_| "window unavailable")?;
     unsafe {
         windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow(hwnd.0 as _, 4);
@@ -135,6 +142,7 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
             window.minimize().map_err(|_| "minimize failed")?;
         }
         "show" => show_without_focus(&window)?,
+        "expand" => dock::expand(&window).map_err(|_| "expand failed")?,
         "close" => window.app_handle().exit(0),
         _ => return Err("unknown window action".into()),
     }
@@ -143,6 +151,9 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
 
 #[tauri::command]
 fn resize(width: u32, height: u32, window: tauri::WebviewWindow) -> Result<(), String> {
+    if dock::is_docked(&window) {
+        return Err("expand before resizing".into());
+    }
     if !(440..=1920).contains(&width) || !(440..=1200).contains(&height) {
         return Err("invalid prototype size".into());
     }
@@ -245,6 +256,7 @@ fn clip_response(request: &tauri::http::Request<Vec<u8>>) -> tauri::http::Respon
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(Model::default()))
+        .manage(Mutex::new(dock::Dock::default()))
         .invoke_handler(tauri::generate_handler![
             transition,
             snapshot,
@@ -256,6 +268,7 @@ fn main() {
         .register_uri_scheme_protocol("sample", |_, request| clip_response(&request))
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
+            dock::attach(&window)?;
             unsafe {
                 // Keep the product's rectangular-window convention.
                 let hwnd = window.hwnd()?;
@@ -278,6 +291,9 @@ fn main() {
             }
             if let tauri::WindowEvent::Resized(_) = event {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    if dock::is_docked(&webview) {
+                        let _ = dock::shape(&webview);
+                    }
                     visibility(
                         &webview,
                         !window.is_minimized().unwrap_or(false)

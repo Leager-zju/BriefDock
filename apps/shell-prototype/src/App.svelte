@@ -3,10 +3,13 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import Icon from './Icon.svelte';
-  import { accepts, active, formatTime, toggleSection, type Root, type Section, type View } from './lifecycle';
+  import { accepts, active, formatTime, toggleSection, moduleTarget, type Root, type Section, type View } from './lifecycle';
+  import logoUrl from '../../../assets/lazybuddy.svg';
   type Source = { id: string; name: string; tag: string; color: string; items: string[] };
   let root = $state<Root>('news');
   let section = $state<Section>('content');
+  let modulesReturn: Section = 'content';
+  let docked = $state(false);
   let visible = $state(!document.hidden);
   let view = $state<View>({ root: 'news', section: 'content', visible: !document.hidden, generation: 0 });
   let dark = $state(false);
@@ -33,6 +36,7 @@
   const scrollPositions = new Map<string, number>();
   let page: HTMLElement;
   let bridge = $state(false);
+  let eventsReady = $state(false);
   const native = '__TAURI_INTERNALS__' in window;
   async function call<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
     if (!native) throw new Error('请在原型桌面窗口中使用');
@@ -61,7 +65,7 @@
   async function change(nextRoot = root, nextSection = section, nextVisible = visible) {
     if (view.generation > 0 && nextRoot === root && nextSection === section && nextVisible === visible) return;
     const ticket = ++sequence;
-    if (page) scrollPositions.set(`${root}:${section}`, page.scrollTop);
+    if (page && visible && !docked) scrollPositions.set(`${root}:${section}`, page.scrollTop);
     pause();
     root = nextRoot; section = nextSection; visible = nextVisible;
     view = { root, section, visible, generation: view.generation + 1 };
@@ -89,6 +93,10 @@
   async function action(action: string) {
     if (action !== 'show') pause();
     try { await call('window_action', { action }); } catch (error) { notice = String(error); }
+  }
+  function toggleModules() {
+    if (section !== 'modules') modulesReturn = section;
+    void change(root, moduleTarget(section, modulesReturn));
   }
   async function togglePlayback() {
     if (!active(view, 'hongguo') || mediaMode !== 'player' || !video) return;
@@ -120,29 +128,44 @@
     if (event.code === 'ArrowRight' || event.code === 'ArrowLeft') { event.preventDefault(); video.currentTime = Math.max(0, Math.min(duration, video.currentTime + (event.code === 'ArrowRight' ? 5 : -5))); }
   }
   onMount(() => {
-    let unlisten: (() => void) | undefined;
+    const unlisteners: (() => void)[] = [];
+    let disposed = false;
+    function subscribe<T>(event: string, handler: (value: T) => void) {
+      return listen<T>(event, value => handler(value.payload)).then(dispose => {
+        if (disposed) dispose(); else unlisteners.push(dispose);
+      });
+    }
     // Native window events own page activation; late browser visibility events only pause media.
     const visibility = () => { if (document.hidden) pause(); };
     document.addEventListener('visibilitychange', visibility);
     if (native) {
-      void listen<boolean>('shell-visibility', event => change(root, section, event.payload)).then(dispose => { unlisten = dispose; });
+      void Promise.all([
+      subscribe<boolean>('shell-visibility', value => { void change(root, section, value); }),
+      subscribe<boolean>('shell-docked', value => {
+        docked = value;
+        if (value) pause();
+        else void tick().then(() => { if (page) page.scrollTop = scrollPositions.get(`${root}:${section}`) ?? 0; });
+      }),
+      subscribe<string>('shell-error', value => { notice = value; })
+      ]).then(() => { eventsReady = true; }).catch(() => { notice = '窗口通知订阅失败，请重新打开原型。'; });
       void call('contract_templates').then(() => { bridge = true; });
       void change();
     } else notice = '浏览器设计预览 · 原生交互请启动独立桌面原型';
-    return () => { pause(); unlisten?.(); document.removeEventListener('visibilitychange', visibility); };
+    return () => { disposed = true; pause(); unlisteners.forEach(dispose => dispose()); document.removeEventListener('visibilitychange', visibility); };
   });
 </script>
 
 <svelte:window onkeydown={mediaKey}/>
-<div class:dark class="app-shell" data-testid="shell" data-root={root} data-section={section} data-visible={visible} data-frames={frameCount}>
+<div class:dark class:docked class="app-shell" data-testid="shell" data-root={root} data-section={section} data-visible={visible} data-docked={docked} data-events-ready={eventsReady} data-frames={frameCount}>
+  {#if docked}<button class="dock-button" aria-label="展开 LazyBuddy" title="展开 LazyBuddy" onclick={() => action('expand')}><img src={logoUrl} alt=""/></button>{/if}
   <header class="toolbar" data-tauri-drag-region>
     <div class="identity" data-tauri-drag-region><span class="logo" data-tauri-drag-region>LB<span>·</span></span><strong data-tauri-drag-region>LazyBuddy</strong><span class="divider"></span>
       <label class="root-selector"><span class="status-dot"></span><select aria-label="选择功能" value={root} onchange={event => change(event.currentTarget.value as Root)}><option value="news">新闻速览</option><option value="hongguo">红果短剧</option></select><Icon name="chevron" size={14}/></label>
     </div>
     <div class="toolbar-spacer" data-tauri-drag-region></div>
     <nav aria-label="全局操作">
-      <button class:chosen={section === 'modules'} onclick={() => change(root, toggleSection(section, 'modules'))} aria-pressed={section === 'modules'}><Icon name="box"/><span>功能</span></button>
-      <button class:chosen={section === 'settings'} onclick={() => change(root, toggleSection(section, 'settings'))} aria-pressed={section === 'settings'}><Icon name="settings"/><span>设置</span></button>
+      <button class="icon-button" class:chosen={section === 'modules'} onclick={toggleModules} aria-label="功能" title="功能" aria-pressed={section === 'modules'}><Icon name="box"/></button>
+      <button class="icon-button" class:chosen={section === 'settings'} onclick={() => change(root, toggleSection(section, 'settings'))} aria-label="设置" title="设置" aria-pressed={section === 'settings'}><Icon name="settings"/></button>
       <span class="divider"></span>
       <button class="icon-button" aria-label="收起" onclick={() => action('minimize')}><Icon name="minus"/></button>
       <button class="icon-button close-button" aria-label="关闭原型" onclick={() => action('close')}><Icon name="close"/></button>
@@ -152,7 +175,7 @@
   <main class="page" bind:this={page}>
     {#if section === 'modules'}
       <section class="content-width module-page">
-        <h1>可用功能</h1>
+        <div class="module-heading"><h1>可用功能</h1><button onclick={toggleModules}><Icon name="arrow" size={16}/>返回</button></div>
         <div class="module-list">
           {#each [{ name: '新闻速览', version: '0.1.0' }, { name: '红果短剧', version: '0.1.0' }] as module}
             <div class="module-row"><div><strong>{module.name}</strong><span class="version">{module.version}</span></div><div class="row-actions"><button disabled>更新</button><button class="subtle-danger" onclick={() => notice = '这是界面原型，未改动任何已安装功能。'}>卸载</button></div></div>
