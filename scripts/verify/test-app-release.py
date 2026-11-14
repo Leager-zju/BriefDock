@@ -14,6 +14,15 @@ spec.loader.exec_module(base)
 
 
 class Release(unittest.TestCase):
+    def test_published_manifest_signature_uses_shipped_public_key(self):
+        path=ROOT/'docs/updates/windows-x86_64.json'
+        if not path.is_file():
+            self.skipTest('first application feed has not been prepared')
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        source=json.loads((ROOT/'app-update-source.json').read_text(encoding='utf-8'))
+        Ed25519PublicKey.from_public_bytes(bytes(source['public_key'])).verify(
+            path.with_name(path.name+'.sig').read_bytes(),path.read_bytes())
+
     def bundle(self, directory, marker, missing=False, corrupt=False):
         names = ['lazybuddy.exe', 'lazybuddy-cli.exe', 'lazybuddy-updater.exe', 'app-update-source.json', 'module-catalog.json']
         if missing:

@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,8 @@ def plan(paths, root=ROOT):
         if name in ('scripts/check-changes.py', '.github/workflows/checks.yml'):
             python_tests.add('scripts/verify/test-select-tests.py')
         if name in ('scripts/package_base.py', 'scripts/create-app-update.py', 'scripts/sign-update.py'):
+            python_tests.add('scripts/verify/test-app-release.py')
+        if name.startswith('docs/updates/') or name == 'app-update-source.json':
             python_tests.add('scripts/verify/test-app-release.py')
         if name in ('scripts/assemble-catalog.py',):
             python_tests.add('scripts/verify/test-catalog-assembly.py')
@@ -55,7 +58,7 @@ def plan(paths, root=ROOT):
     for package, module in sorted(units):
         commands.append(['cargo', 'test', '--locked', '-p', package, *([module] if module else [])])
     for name in sorted(python_tests):
-        commands.append(['python', '-B', name])
+        commands.append([sys.executable, '-B', name])
     return commands
 
 

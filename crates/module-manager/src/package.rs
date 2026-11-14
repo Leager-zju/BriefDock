@@ -14,6 +14,7 @@ use std::{
 fn download_agent(timeout: Duration) -> ureq::Agent {
     // Enabling native-tls does not change ureq's Rustls default provider.
     ureq::Agent::config_builder()
+        .https_only(true)
         .tls_config(
             ureq::tls::TlsConfig::builder()
                 .provider(ureq::tls::TlsProvider::NativeTls)
