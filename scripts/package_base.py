@@ -44,6 +44,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--profile', choices=('debug', 'release'), default='release')
+    parser.add_argument('--binary-dir', type=Path, help='explicit directory containing the two built host executables')
     parser.add_argument('--catalog-source', type=Path)
     args = parser.parse_args()
     output = args.output.resolve()
@@ -52,17 +53,18 @@ def main():
     directory = output / 'LazyBuddy'
     directory.mkdir(parents=True)
     for filename in ('lazybuddy.exe', 'lazybuddy-cli.exe'):
-        shutil.copyfile(ROOT / 'target' / args.profile / filename, directory / filename)
-    if args.catalog_source:
-        source = json.loads(args.catalog_source.read_text(encoding='utf-8'))
-        if set(source) != {'url', 'public_key'} or not source['url'].startswith('https://') or len(source['public_key']) != 32 or any(type(value) is not int or not 0 <= value <= 255 for value in source['public_key']):
-            raise ValueError('invalid trusted catalog source')
-        shutil.copyfile(args.catalog_source, directory / 'module-catalog.json')
+        shutil.copyfile((args.binary_dir or ROOT / 'target' / args.profile) / filename, directory / filename)
+    catalog_source = args.catalog_source or ROOT / 'module-catalog.json'
+    source = json.loads(catalog_source.read_text(encoding='utf-8'))
+    if set(source) != {'url', 'public_key'} or not source['url'].startswith('https://') or len(source['public_key']) != 32 or any(type(value) is not int or not 0 <= value <= 255 for value in source['public_key']):
+        raise ValueError('invalid trusted catalog source')
+    shutil.copyfile(catalog_source, directory / 'module-catalog.json')
     (directory / 'README.txt').write_text(
         'LazyBuddy · Windows x64\n\n'
         '运行 lazybuddy.exe 打开桌面搭子。基础包只包含主程序与 CLI，功能需要单独安装。\n'
         '附有正式可信目录配置时，可在「功能」中下载安装或卸载新闻、短剧。\n'
-        '当前开发包尚未连接公开目录；开发者可在退出宿主后使用：\n'
+        '在顶部「功能」中安装新闻或红果，安装完成后从「选择功能」进入，无需重启。\n'
+        '开发者也可在退出宿主后使用：\n'
         'lazybuddy-cli modules install-local <功能包目录>\n\n'
         '显示、系统和关于设置为全局设置；当前功能的账号和偏好单独保存。\n'
         '用户数据位于 %LOCALAPPDATA%\\LazyBuddy，账号凭据由 Windows 安全存储管理。\n'

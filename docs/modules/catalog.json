@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "packages": [
+    {
+      "id": "news",
+      "name": "新闻速览",
+      "kind": "feature",
+      "version": "0.1.0",
+      "target": "windows-x86_64",
+      "dependencies": [],
+      "url": "https://github.com/LazyBuddyDev/LazyBuddy/releases/download/modules-v0.1.0/news-0.1.0-windows-x86_64.zip",
+      "sha256": "f48a1f9359788353d298135fcc9a93c212b3b1cbcfc54de97da9f159ae0c3ec7",
+      "bytes": 1235833
+    },
+    {
+      "id": "hongguo",
+      "name": "红果短剧",
+      "kind": "feature",
+      "version": "0.1.0",
+      "target": "windows-x86_64",
+      "dependencies": [
+        {
+          "id": "python-runtime",
+          "version": "0.1.0"
+        },
+        {
+          "id": "media-runtime",
+          "version": "0.1.0"
+        }
+      ],
+      "url": "https://github.com/LazyBuddyDev/LazyBuddy/releases/download/modules-v0.1.0/hongguo-0.1.0-windows-x86_64.zip",
+      "sha256": "65533d39f198c0964bbd8afb9df0b388165cce1013bbcbcd72442e8b5b5f8c05",
+      "bytes": 22136044
+    },
+    {
+      "id": "python-runtime",
+      "name": "Python Runtime",
+      "kind": "runtime",
+      "version": "0.1.0",
+      "target": "windows-x86_64",
+      "dependencies": [],
+      "url": "https://github.com/LazyBuddyDev/LazyBuddy/releases/download/modules-v0.1.0/python-runtime-0.1.0-windows-x86_64.zip",
+      "sha256": "30980f93517a1adcd99a2162104e8880914a9088ac748502c4f81da7d26186ef",
+      "bytes": 11147854
+    },
+    {
+      "id": "media-runtime",
+      "name": "Media Runtime",
+      "kind": "runtime",
+      "version": "0.1.0",
+      "target": "windows-x86_64",
+      "dependencies": [
+        {
+          "id": "python-runtime",
+          "version": "0.1.0"
+        }
+      ],
+      "url": "https://github.com/LazyBuddyDev/LazyBuddy/releases/download/modules-v0.1.0/media-runtime-0.1.0-windows-x86_64.zip",
+      "sha256": "626137392d85ec9145bd82cf6e408b363b023ca2a846c2ad9202861afb0bcafa",
+      "bytes": 19368422
+    }
+  ]
+}

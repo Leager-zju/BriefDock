@@ -102,7 +102,7 @@ impl App {
                 value
             });
             call.reply(json!({"ok":true,"data":{"pid":std::process::id(),"exe":std::env::current_exe().ok(),"capsule":self.capsule,"window":self.desktop.as_ref().and_then(|desktop|desktop.bounds()),"root":self.selected.as_ref().map(|root|&root.id),"section":format!("{:?}",self.section),"hidden":self.hidden,"busy":self.busy,"method":self.current_method,"error":self.error,
-                "service_active":self.session.is_some(),"news_sources":page.map(|page|page.catalog.len()),"results":page.map(|page|page.cards.len()),"query":page.map(|page|&page.query),"account_operation":page.map(|page|page.account["operation"].clone()),"favorite_pending":page.is_some_and(|page|page.favorite_override.is_some()),"favorite":page.is_some_and(|page|page.favorites.iter().any(|row|row["id"]==page.media["series"])),"account_state":page.map(|page|page.account["state"].clone()),"qr_present":page.is_some_and(|page|page.login_qr.is_some()),"media":media}}));
+                "modules":self.installed,"manager_busy":self.manager_busy,"available_modules":self.catalog.as_ref().map(|catalog|catalog.packages.iter().filter(|package|package.kind==Kind::Feature).map(|package|package.id.clone()).collect::<Vec<_>>()),"service_active":self.session.is_some(),"news_sources":page.map(|page|page.catalog.len()),"results":page.map(|page|page.cards.len()),"query":page.map(|page|&page.query),"account_operation":page.map(|page|page.account["operation"].clone()),"favorite_pending":page.is_some_and(|page|page.favorite_override.is_some()),"favorite":page.is_some_and(|page|page.favorites.iter().any(|row|row["id"]==page.media["series"])),"account_state":page.map(|page|page.account["state"].clone()),"qr_present":page.is_some_and(|page|page.login_qr.is_some()),"media":media}}));
             return Task::none();
         }
         let args = &request.args;
@@ -113,6 +113,17 @@ impl App {
                 }))
         {
             call.reply(json!({"ok":false,"error":{"code":"account_busy"}}));
+            return Task::none();
+        }
+        if matches!(
+            request.command.as_str(),
+            "modules.install" | "modules.uninstall" | "modules.refresh"
+        ) && (self.hidden
+            || self.capsule
+            || self.section != Section::Modules
+            || self.manager_busy)
+        {
+            call.reply(json!({"ok":false,"error":{"code":"module_manager_unavailable"}}));
             return Task::none();
         }
         let needs_media = request.command.starts_with("player.")
@@ -162,6 +173,22 @@ impl App {
             .map(|category| Message::Navigate(Section::Settings(category))),
             "settings.back" => Some(Message::Navigate(Section::Content)),
             "modules.open" => Some(Message::Navigate(Section::Modules)),
+            "modules.refresh" => Some(Message::Reload),
+            "modules.install" => args["id"]
+                .as_str()
+                .filter(|id| {
+                    self.catalog.as_ref().is_some_and(|catalog| {
+                        catalog
+                            .packages
+                            .iter()
+                            .any(|package| package.id == *id && package.kind == Kind::Feature)
+                    })
+                })
+                .map(|id| Message::Install(id.into())),
+            "modules.uninstall" => args["id"]
+                .as_str()
+                .filter(|id| self.modules.iter().any(|module| module.id == *id))
+                .map(|id| Message::Uninstall(id.into())),
             "news.refresh" => Some(Message::Refresh),
             "search" => args["query"]
                 .as_str()

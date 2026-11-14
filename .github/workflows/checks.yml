@@ -3,9 +3,9 @@ name: LazyBuddy checks
 on:
   push:
     branches: [main, 'codex/lazybuddy-*']
-    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/checks.yml']
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', '.github/workflows/checks.yml']
   pull_request:
-    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/checks.yml']
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', '.github/workflows/checks.yml']
   workflow_dispatch:
 
 permissions:
@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Signing tool dependencies
+        run: python -m pip install --disable-pip-version-check cryptography==46.0.3
       - uses: actions/cache@v4
         with:
           path: |
@@ -52,4 +54,6 @@ jobs:
           python -B scripts/verify/test-host-lifecycle.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/verify/test-catalog-assembly.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -B scripts/verify/test-signing-key.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

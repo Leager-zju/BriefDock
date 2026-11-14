@@ -32,7 +32,7 @@ $env:LAZYBUDDY_DATA_DIR=(Join-Path (Get-Location) 'target/preview-data')
 
 宿主运行时使用应用内功能管理；CLI拒绝直接变更运行中宿主的包，正常退出后再操作。精确依赖全部准备和校验后才原子切换 registry，失败保留旧版本；卸载最后一个使用者时回收共享运行时。清理遇到占用会报告，后续独占管理时补做，不冒充文件已经删除。
 
-应用内目录从 EXE 同目录的 `module-catalog.json` 读取配置，字段为 `url` 和32字节数组 `public_key`。下载 `<url>` 及其 `.sig` 后验证原始JSON签名、包SHA256、大小、路径、目标平台和依赖，不接受未签名的在线目录。正式目录尚待配置，不能用开发索引冒充已发布。
+应用内目录从 EXE 同目录的 `module-catalog.json` 读取配置，字段为 `url` 和32字节数组 `public_key`。下载 `<url>` 及其 `.sig` 后验证原始JSON签名、包SHA256、大小、路径、目标平台和依赖，不接受未签名的在线目录。仓库根目录的 `module-catalog.json` 固定维护者公钥和签名目录 URL；Cargo 构建自动复制到宿主旁，基础包默认携带，不能用下载响应替换可信公钥。
 
 ## 宿主控制
 
@@ -43,7 +43,7 @@ $request='{"version":1,"command":"status","args":{}}'
 & .\target\debug\lazybuddy-cli.exe host $request
 ```
 
-可用命令：`status`、`page.select`（id）、`settings.open`（category: page/display/system/about）、`settings.back`、`modules.open`、`window.show/hide/toggle`、`app.quit`、`news.refresh`、`search`（query）、`favorites`（value）、`account.login/cancel/logout`，以及 `player.open`（series/episode）、`player.play/pause/close/seek/speed/volume/mute`。数值操作传 `value`，音量为0–1、倍速0.25–4；accepted不代表后台操作成功，随后查询状态。
+可用命令：`status`、`page.select`（id）、`settings.open`（category: page/display/system/about）、`settings.back`、`modules.open`、`modules.refresh`、`modules.install/uninstall`（id）、`window.show/hide/toggle`、`app.quit`、`news.refresh`、`search`（query）、`favorites`（value）、`account.login/cancel/logout`，以及 `player.open`（series/episode）、`player.play/pause/close/seek/speed/volume/mute`。数值操作传 `value`，音量为0–1、倍速0.25–4；accepted不代表后台操作成功，随后查询状态。
 
 `player.controls` 通过布尔value显示/隐藏覆盖控件，供CLI及隔离截图使用；正常界面由悬停、Tab和菜单状态控制。`player.favorite` 返回accepted仅表示已接收，须用status的favorite_pending/favorite确认官方读回；账号忙时明确返回account_busy。
 
@@ -61,7 +61,7 @@ $request='{"version":1,"command":"status","args":{}}'
 python -B scripts/assemble-catalog.py --packages <新闻ZIP> <红果ZIP> <PythonZIP> <媒体ZIP> --base-url <HTTPS资源目录> --output target/catalog/catalog.json
 ```
 
-该步骤读取包清单、完整依赖、文件大小和哈希，不获取或编译服务源码。之后再使用既有发布私钥签名。构建与组装不等于发布；公开许可、远端归属和签名源需要单独落实。
+该步骤读取包清单、完整依赖、文件大小和哈希，不获取或编译服务源码。之后再使用既有发布私钥签名。构建与组装不等于发布；维护者签名与发布步骤见 [模块分发](module-distribution.md)。
 
 独立服务仍使用LazyBuddy安全命名空间。隔离真实播放、收藏写入和进度上传的开关彼此独立，具体见红果仓库API文档；默认验证不触及真实账号。
 
@@ -77,4 +77,6 @@ python -B scripts/assemble-catalog.py --packages <新闻ZIP> <红果ZIP> <Python
 
 持有既有发布私钥的维护者可在包含cryptography的私有环境运行 `python scripts/sign-catalog.py --catalog target/packages/catalog.json --key <私钥PEM路径> --source target/module-catalog.json --url <HTTPS目录URL>`。输出raw Ed25519签名和公钥配置，不生成发布身份、不打印私钥、不自动上传。私钥不放工作区，不进命令行参数值或CI日志；路径参数仅指向本机文件。
 
-云端Windows检查自动运行定向协议和空宿主验证；Windows打包工作流仅手动触发，自有LICENSE缺失时拒绝上传分发产物。当前不打发布标签、不创建Release、不把未签名开发目录作为线上可信源。实际公开仓库、许可与签名发布配置仍待确认。
+云端Windows检查自动运行定向协议和空宿主验证；Windows打包工作流仅手动触发，自有LICENSE缺失时拒绝上传分发产物。预览模块通过 `modules-v0.1.0` 发布，主程序通过 `v2.0.0-preview.1` 发布；不把未签名开发目录作为线上可信源。发布与本地构建是独立动作。
+
+`modules.install/uninstall/refresh` 只在当前可见「功能」页且管理器空闲时接受，与GUI共用后台任务；`status` 的 `manager_busy/modules/available_modules/error` 用于核对完成，accepted不代表成功。

@@ -231,9 +231,9 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                     text("LazyBuddy").size(28),
                     text("你的桌面搭子"),
                     text(env!("CARGO_PKG_VERSION")),
-                    text("2.0 开发版，正式更新与下载尚未开放。"),
-                    button("项目与开发进展").on_press(Message::OpenLink(
-                        "https://github.com/LazyBuddyDev/LazyBuddy/tree/main"
+                    text("2.0 预览版，可在「功能」中按需安装模块。"),
+                    button("下载与版本说明").on_press(Message::OpenLink(
+                        "https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/v2.0.0-preview.1"
                             .into()
                     ))
                 ]
