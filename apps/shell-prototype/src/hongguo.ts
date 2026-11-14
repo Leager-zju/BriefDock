@@ -1,6 +1,9 @@
 export type Item = {id:string;title:string;episodes:number|null;has_cover?:boolean};
 export type Account = {state:string;name:string;qr_png?:string;error?:string|null;favorites_error?:string|null;favorites?:Item[];operation?:string|null};
-export type Playback = {session:number;loading:boolean;prepared:boolean;suspended:boolean;resource:{url:string;mime:string}|null;episodes?:number[];available_qualities?:string[];error?:string|null;progress_error?:string|null};
+export type Playback = {session:number;loading:boolean;prepared:boolean;suspended:boolean;resource:{url:string;mime:string}|null;episodes?:number[];available_qualities?:number[];error?:string|null;progress_error?:string|null};
+export function qualityLabels(values:number[]):string[] {
+  return values.filter(value=>[360,480,720,1080].includes(value)).map(value=>`${value}p`);
+}
 export function loginPending(state:string):boolean {return ['preparing','pending','scanned','verifying'].includes(state);}
 export function adjacent(episodes:number[],current:number,delta:number):number|undefined {
   const index=episodes.indexOf(current);

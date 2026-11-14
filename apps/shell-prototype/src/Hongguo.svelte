@@ -3,7 +3,7 @@
   import {invoke} from '@tauri-apps/api/core';
   import Icon from './Icon.svelte';
   import {formatTime} from './lifecycle';
-  import {loginPending,adjacent,message,type Account,type Item,type Playback} from './hongguo';
+  import {loginPending,adjacent,message,qualityLabels,type Account,type Item,type Playback} from './hongguo';
   let {active,showing,accountOnly,notice,navigation}: {active:boolean;showing:boolean;accountOnly:boolean;notice:(text:string)=>void;navigation:Snippet}=$props();
   let account=$state<Account>({state:'idle',name:''});
   let tab=$state<'search'|'favorites'>('search');
@@ -53,7 +53,7 @@
   }
   async function attach(data:Playback,ticket:number){
     if(!valid(ticket)||!data.resource)return;
-    lease=data.session;episodes=data.episodes??episodes;qualities=data.available_qualities??[];
+    lease=data.session;episodes=data.episodes??episodes;qualities=qualityLabels(data.available_qualities??[]);
     const element=video;
     const ready=new Promise<void>((resolve,reject)=>{
       const clear=()=>{element.removeEventListener('loadedmetadata',loaded);element.removeEventListener('error',failed);cancelMetadata=undefined;};
@@ -160,7 +160,9 @@
   export function pause(){if(video)video.pause();stopFrames();playing=false;}
   export function seekRelative(delta:number){if(video&&source){frameTarget=Math.max(0,Math.min(duration,video.currentTime+delta));frames();video.currentTime=frameTarget;}}
   async function videoError(){
-    if(!live||!source)return;const ticket=epoch;const request=playRequest;const code=video.error?.code;
+    if(!live||!source||!video?.error)return;
+    playing=false;stopFrames();
+    const ticket=epoch;const request=playRequest;const code=video.error.code;
     try{const data=await raw<Playback>('playback.status');if(!valid(ticket)||request!==playRequest)return;
       if(data.error)warn(data.error);else notice(code===4?'浏览器不支持该视频编码或封装':code===3?'视频解码失败':'媒体读取失败');
     }catch(error){if(valid(ticket))warn(error);}

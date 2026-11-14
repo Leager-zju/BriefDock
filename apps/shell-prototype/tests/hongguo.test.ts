@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {loginPending,adjacent,message} from '../src/hongguo.ts';
+import {loginPending,adjacent,message,qualityLabels} from '../src/hongguo.ts';
+test('numeric service qualities become canonical playback request strings',()=>{
+  assert.deepEqual(qualityLabels([360,480,720,1080]),['360p','480p','720p','1080p']);
+  assert.deepEqual(qualityLabels([1080]),['1080p']);
+  assert.deepEqual(qualityLabels([2160]),[]);
+});
 test('login polling ends after confirmation, expiry or failure',()=>{
   assert.ok(loginPending('verifying'));assert.ok(loginPending('scanned'));
   for(const state of ['signed_in','expired','failed','idle'])assert.equal(loginPending(state),false);

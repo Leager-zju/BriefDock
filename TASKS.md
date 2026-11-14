@@ -71,6 +71,7 @@
 - 关闭到托盘修复：原型“×”原先直接退出且无托盘；新增Tauri托盘Logo、左键/菜单显示、菜单退出，close与quit分开，原生CloseRequested同样隐藏。专项暴露原生无焦点ShowWindow与Tao隐藏缓存不一致，改为成对原生显示/隐藏/最小化。新增托盘菜单单元1项通过；前端类型检查通过；实际Windows×隐藏、WM_CLOSE隐藏、托盘通知回调恢复、最小化后恢复、设置状态保留、隐藏无新增新闻请求、quit正常退出0通过，关闭路径未出现Chrome_WidgetWin_0注销警告。合成媒体相关回归通过（暂停seek3.1秒，隐藏资源409，恢复3.1秒暂停/1.5倍速），不代表真实节目通过。证据target/verification-shell/tray.json及target/verification-browser-video/browser-media.json；测试自有配置已清理。旧预览25660已通过其实际Tauri窗口WM_CLOSE正常退出，保存账号保留；同一测试入口构建完成，待重开并同步分支。
 - 托盘交付及按钮精简：a87634f已推送，CI43595634451通过；随后按用户要求移除“×”旁的缩小按钮，保留系统最小化及贴边隐藏。前端构建/类型检查、实际工具栏无该按钮及托盘专项通过；CLI按窗口所属PID/路径和实际菜单文字选择“退出”，确认托盘菜单正常退出码0，无鼠标输入。上一预览11812正常退出，同一target/qa-browser-video/build/debug入口已覆盖并重开PID488，账号/配置保留，未自动访问真实账号；当前真实播放故障仍未解决。新报告tray.json含no_minimize_button=true，测试临时WebView配置已清理。
 - 阻塞与下一步：用户用run-shell-prototype.ps1 -ServicePackages启动当前候选后亲自扫码，验收真实搜索、收藏、媒体权限、浏览器格式及音画同步，再确认优化版资源预算。既有target/shell-prototype入口仍为先前版本，本轮候选未覆盖用户实例或发布更新；完整迁移不提前归档。
+- 后续真实反馈与修复：用户确认退出代理后可播放，但首次报格式不支持、重试成功，切剧后invalid_quality阻断后续播放。查明真实available_qualities为number[]，前端误声明string[]且将数字实际档位写回quality请求；统一在API边界转为360p/480p/720p/1080p字符串，修正样例契约并严格校验请求。另修复video.error后playing未清理导致缺少重试入口，忽略已清除的迟到error事件。前端8项、类型检查及实际WebView数字档位/两部剧往返切换、模拟格式错误后手动重试、隐藏恢复通过，报告browser-media.json新增两个标志。真实首次格式报错根因尚未确认，不把恢复修复当成该故障已消除；代理影响由用户反馈确认，具体代理模式/路由仍未定位。同一BAT对应宿主已重建，未自动启动或做真实网络复验；下一步由用户保持无代理后继续验收切剧和首次播放。
 
 ## 已归档
 

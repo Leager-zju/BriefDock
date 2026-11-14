@@ -48,6 +48,17 @@ try{
   await page.getByLabel('搜索短剧').fill('测试');await page.getByRole('search').getByRole('button',{name:'搜索',exact:true}).click();
   await page.getByRole('button',{name:'播放测试短剧',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('video')?.currentTime>.3);
+  await page.locator('video').evaluate(v=>{v.pause();v.src='http://sample.localhost/not-a-video';v.load();});
+  await page.waitForFunction(()=>document.querySelector('video')?.error!==null);
+  await page.getByRole('button',{name:'播放视频',exact:true}).click();
+  await page.waitForFunction(()=>{const v=document.querySelector('video');return v&&!v.error&&!v.paused&&v.currentTime>.3;});
+  assert.equal(await page.getByLabel('清晰度').inputValue(),'360p');
+  await page.getByRole('button',{name:'返回列表',exact:true}).click();
+  await page.getByRole('button',{name:'播放另一部短剧',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('video')?.currentTime>.3);
+  await page.getByRole('button',{name:'返回列表',exact:true}).click();
+  await page.getByRole('button',{name:'播放测试短剧',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('video')?.currentTime>.3);
   const read=()=>page.locator('video').evaluate(v=>({position:v.currentTime,width:v.videoWidth,height:v.videoHeight,paused:v.paused,muted:v.muted,rate:v.playbackRate,error:v.error?.code??null}));
   const initial=await read();assert.ok(initial.width>0&&initial.height>0);assert.equal(initial.error,null);
   await page.getByRole('button',{name:'暂停',exact:true}).click();await delay(150);
@@ -69,7 +80,7 @@ try{
   await page.getByRole('heading',{name:'红果账号',exact:true}).waitFor();
   await page.getByRole('button',{name:'退出登录',exact:true}).click();
   await page.getByRole('button',{name:'登录',exact:true}).waitFor();
-  report={initial,seek,mediaTime,restored,module_back:'content',qr_cancel:true,qr_stopped_in_global_settings:true,account_logout:true,scope:'fixture QR/account workflow and browser resource; no real account or upstream network'};
+  report={initial,seek,mediaTime,restored,numeric_qualities_and_series_switch:true,media_error_retry:true,module_back:'content',qr_cancel:true,qr_stopped_in_global_settings:true,account_logout:true,scope:'fixture QR/account workflow and browser resource; no real account or upstream network'};
   await invoke('window_action',{action:'quit'});
   await new Promise((resolve,reject)=>{if(child.exitCode!==null)return resolve();const timer=setTimeout(()=>reject(Error('prototype exit timeout')),15000);child.once('exit',()=>{clearTimeout(timer);resolve();});});
   await writeFile(path.join(output,'browser-media.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
