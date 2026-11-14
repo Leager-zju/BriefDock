@@ -1,10 +1,10 @@
 # 宿主界面技术与视觉原型
 
-2026-11-14，候选路线为Tauri 2.12.5 + Svelte 5.57.3 + TypeScript 6.0.3；生产客户端仍为Rust/Iced。本原型用于决定是否迁移，不经更新源分发，不接入生产数据或真实账号。
+2026-11-14，候选路线为Tauri 2.12.5 + Svelte 5.57.3 + TypeScript 6.0.3；生产客户端仍为Rust/Iced。本原型用于决定是否迁移，不经更新源分发；显式选择真实服务包后可扫码验收，凭据和数据与生产应用隔离。
 
 ## 当前结论
 
-最新方向：服务提供受控、可供浏览器读取的媒体资源，前端使用HTML video解码、同步及绘制控件，复用现有私有Range MP4输入层。资源API和独立WebView合成媒体闭环已经通过；真实红果输入及完整业务界面仍待接入和验收。原生D3D12合成实验保留在codex/lazybuddy-native-web-video，不合入新的默认路线。
+最新方向：服务提供受控、可供浏览器读取的媒体资源，前端使用HTML video解码、同步及绘制控件，复用现有私有Range MP4输入层。资源API、账号/搜索/收藏/选集入口及独立WebView合成媒体闭环已经接通；真实红果输入仍待用户扫码验收。原生D3D12合成实验保留在codex/lazybuddy-native-web-video，不合入新的默认路线。
 
 Web技术适合实现统一排版、响应式布局、浅深主题和视频覆盖控件；现有Rust模块协议继续使用。整体替换仍待真实业务入口接线、节目验收及完整资源预算确认；WebView2增加的常驻进程与内存需要单独评估。
 
@@ -20,7 +20,17 @@ Server核对Host、随机路径和唯一允许Origin，提供CORS、GET/HEAD/单
 
 候选hongguo0.2.0已独立组装，只有python-runtime0.1.0依赖；默认打包不包含media-runtime。真实候选入口health通过，无GStreamer目录。未改动的搜索辅助从既有发布包复用（SHA256 b5adbc861409f7dc1b6f355ffb22e6efbf0b623e70e93e87935babb53c1c891b），本轮没有重编译或跑搜索/Go测试。现有Iced消费者不应安装这套候选目录，待新宿主完整接入后再发布。
 
-原型仍使用样例搜索/收藏和固定样例剧ID，不伪装已接入真实业务。只有显式LAZYBUDDY_BROWSER_PACKAGES包目录才开启服务资源模式，默认入口仍为原浏览器离线样例。开发样例入口由红果服务仓库自己的scripts/verify/stage-browser-fixture.py组装，不放入正式包；宿主只读清单/调用子进程API，不跨仓库导入实现。服务契约与命令见独立服务docs/browser-playback.md。验证脚本为apps/shell-prototype/tests/browser-media.mjs，证据target/verification-browser-video/h264.json及h265-aac.json和截图。
+显式LAZYBUDDY_BROWSER_PACKAGES包目录开启完整服务入口：未登录显示登录按钮、弹层渲染二维码；登录后搜索与账号收藏使用实际服务数据，播放使用选中剧集ID，提供目录选集、清晰度和本地观看断点。默认不传包仍为离线视觉样例。开发样例入口由红果服务仓库自己的scripts/verify/stage-browser-fixture.py组装，不放入正式包；宿主只读清单/调用子进程API，不跨仓库导入实现。
+
+真实网络手动验收入口（在项目根目录执行）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-shell-prototype.ps1 -ServicePackages .\target\service-exports\lazybuddy-hongguo-service\target\packages-browser-current
+```
+
+先正常关闭同一入口的旧原型。脚本调用npm.cmd、打印两阶段构建进度；服务模式不需要GStreamer。当前候选hongguo0.2.1新增凭据作用域，宿主拒绝低于0.2.1的包，使用shell-preview命名空间安全保存登录及设备档案；本地进度在%LOCALAPPDATA%/LazyBuddyShellPreview/hongguo。搜索与用户明确点击的收藏操作允许真实网络；云端进度上传默认关闭。切换到全局设置、功能页或隐藏窗口停止扫码任务。不得把停止扫码等同于退出已保存账号。
+
+验证脚本apps/shell-prototype/tests/browser-media.mjs使用模拟账号，已验证二维码显示/取消、全局设置终止扫码、登录搜索播放、退出账号、功能页返回内容、暂停seek及隐藏恢复3.1秒/1.5倍速。前端6项、Rust播放桥3项、服务33项受影响单元通过。证据target/verification-browser-video/browser-media.json；没有使用真实账号、真实扫码或上游节目，因此真实网络/权限/音画同步留给用户手动验收。
 
 复现时先在独立服务仓库构建包，再用其stage-browser-fixture.py的--runtime-packages显式选择生成包目录。原型侧设置LAZYBUDDY_BROWSER_PACKAGES为样例包目录、LAZYBUDDY_BROWSER_FIXTURE_FILE为至少4秒且不超过8MB的自制合成MP4；构建后运行`node apps/shell-prototype/tests/browser-media.mjs <候选exe绝对路径>`。驱动只关闭自身实例和临时WebView配置；固定样例入口不放进正式服务包。代码CI：宿主e0e950d运行43587778472、服务554ab6a运行43587786151均成功。源码仅在独立分支，不通过更新源覆盖生产。
 
@@ -61,7 +71,7 @@ node apps/shell-prototype/tests/native-media.mjs target/qa-native-video/build/de
 
 ## 工具栏、返回与贴边收起
 
-功能/设置全宽度下均只显示图标，保留可访问名称和提示。功能页标题右侧返回与工具栏功能图标共用导航，恢复打开前的内容或设置分类。
+功能/设置全宽度下均只显示图标，保留可访问名称和提示。两者是平级页面；功能页标题右侧返回与工具栏功能图标共用导航，始终返回当前根页面内容。设置→功能→返回也回根页面，不恢复设置。
 
 原型沿用现有宿主WM_MOVING/WM_EXITSIZEMOVE和当前显示器工作区算法，独立适配Tauri，不导入Iced实现。只有拖动完成且靠近左右边缘才收起，单纯缩放不触发。收起为40逻辑像素圆形Logo，当前DPI下换算物理尺寸，用原生椭圆区域裁剪显示及命中；收起期间浮在上层，展开恢复原有置顶状态、有效位置、尺寸、页面及滚动位置。Logo点击展开，悬停不自动展开。
 

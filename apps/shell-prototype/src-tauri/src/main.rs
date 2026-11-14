@@ -32,6 +32,7 @@ struct View {
 struct Model {
     view: View,
     feed_requests: u64,
+    account_page: bool,
 }
 impl Model {
     fn transition(&mut self, root: Root, section: Section, visible: bool) -> View {
@@ -55,20 +56,32 @@ fn transition(
     root: Root,
     section: Section,
     visible: bool,
+    account_page: Option<bool>,
     state: tauri::State<Mutex<Model>>,
     window: tauri::WebviewWindow,
 ) -> View {
     let visible = visible && !dock::is_docked(&window);
     let page = root == Root::Hongguo && section == Section::Content;
-    let view = state.lock().unwrap().transition(root, section, visible);
-    window.state::<playback::State>().context(page, visible);
+    let account =
+        root == Root::Hongguo && section == Section::Settings && account_page.unwrap_or(false);
+    let view = {
+        let mut state = state.lock().unwrap();
+        if state.account_page != account {
+            state.account_page = account;
+            state.view.generation += 1;
+        }
+        state.transition(root, section, visible)
+    };
+    window
+        .state::<playback::State>()
+        .context(page, account, visible);
     view
 }
 #[tauri::command]
 fn snapshot(state: tauri::State<Mutex<Model>>, window: tauri::WebviewWindow) -> serde_json::Value {
     let state = state.lock().unwrap();
     serde_json::json!({"view":state.view,"feed_requests":state.feed_requests,
-        "media_route":if playback::enabled(){"browser_service"}else{"browser_h264_sample"}, "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
+        "media_route":if playback::enabled(){"browser_service"}else{"browser_h264_sample"},"real_service":playback::enabled()&&std::env::var_os("LAZYBUDDY_BROWSER_FIXTURE_FILE").is_none(), "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
 }
 #[tauri::command]
 async fn demo_feed(
@@ -120,8 +133,11 @@ fn visibility(window: &tauri::WebviewWindow, visible: bool) {
     let changed = view.visible != visible;
     state.transition(view.root, view.section, visible);
     let page = state.view.root == Root::Hongguo && state.view.section == Section::Content;
+    let account = state.account_page;
     drop(state);
-    window.state::<playback::State>().context(page, visible);
+    window
+        .state::<playback::State>()
+        .context(page, account, visible);
     if changed {
         let _ = window.emit("shell-visibility", visible);
     }

@@ -45,7 +45,8 @@ try{
   await page.getByRole('button',{name:'显示设置',exact:true}).click();
   await page.getByRole('button',{name:'功能',exact:true}).click();
   await page.getByRole('button',{name:'返回',exact:true}).click();
-  assert.equal(await page.locator('[data-testid=shell]').getAttribute('data-section'),'settings');
+  assert.equal(await page.locator('[data-testid=shell]').getAttribute('data-section'),'content');
+  await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByRole('heading',{name:'显示设置',exact:true}).waitFor();
   await page.getByRole('button',{name:'切换深色',exact:true}).click();
   await page.getByRole('button',{name:'设置',exact:true}).click();

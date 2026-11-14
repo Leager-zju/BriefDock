@@ -3,12 +3,12 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import Icon from './Icon.svelte';
+  import Hongguo from './Hongguo.svelte';
   import { accepts, active, formatTime, toggleSection, moduleTarget, type Root, type Section, type View } from './lifecycle';
   import logoUrl from '../../../assets/lazybuddy.svg';
   type Source = { id: string; name: string; tag: string; color: string; items: string[] };
   let root = $state<Root>('news');
   let section = $state<Section>('content');
-  let modulesReturn: Section = 'content';
   let docked = $state(false);
   let visible = $state(!document.hidden);
   let view = $state<View>({ root: 'news', section: 'content', visible: !document.hidden, generation: 0 });
@@ -25,42 +25,9 @@
   let category = $state('page');
   let video = $state<HTMLVideoElement>(undefined!);
   let servicePlayback = $state(false);
-  let resource = $state<string>();
-  let serviceLease: number | undefined;
-  let cancelMetadata: (() => void) | undefined;
-  type Playback = { session: number; loading: boolean; prepared: boolean; resource: {url:string;mime:string}|null };
-  const serviceCall = (method:string,args:Record<string,unknown>={}) => call<Playback>('playback_call',{method,args});
-  function detachResource() {
-    cancelMetadata?.();
-    if (!servicePlayback || !resource) return;
-    if (video && video.readyState > 0) position = video.currentTime;
-    resource = undefined;
-    if (video) { video.removeAttribute('src'); video.load(); }
-  }
-  async function prepareResource(open:boolean) {
-    if (resource) return;
-    const ticket = sequence;
-    let value = await serviceCall(open ? 'playback.open' : 'playback.resume', open ? {series:'123',episode:1,quality:'720p',origin:location.origin} : {session:serviceLease});
-    serviceLease=value.session;
-    const end=performance.now()+60000;
-    while(value.loading && performance.now()<end && ticket===sequence && active(view,'hongguo')) {
-      await new Promise(resolve=>setTimeout(resolve,150));
-      if(ticket!==sequence || !active(view,'hongguo')) return;
-      value=await serviceCall('playback.status');
-    }
-    if(ticket!==sequence || !active(view,'hongguo')) return;
-    if(!value.prepared || !value.resource) { await serviceCall('playback.close',{session:serviceLease});serviceLease=undefined;throw new Error('媒体资源未准备完成'); }
-    const element=video;
-    const ready = new Promise<void>((resolve,reject)=>{
-      const clear=()=>{element.removeEventListener('loadedmetadata',loaded);element.removeEventListener('error',failed);cancelMetadata=undefined;};
-      const loaded=()=>{clear();resolve();};
-      const failed=()=>{clear();reject(new Error('浏览器无法解码该媒体资源'));};
-      cancelMetadata=()=>{clear();reject(new Error('媒体页面已暂停'));};
-      element.addEventListener('loadedmetadata',loaded,{once:true});element.addEventListener('error',failed,{once:true});
-    });
-    resource=value.resource.url;
-    await tick();await ready;
-  }
+  let serviceActive = $state(false);
+  let realHongguo = $state<Hongguo>();
+  let lastAccountPage = false;
   let playing = $state(false);
   let position = $state(0);
   let duration = $state(0);
@@ -100,12 +67,15 @@
     callback = video.requestVideoFrameCallback(frame);
   }
   async function change(nextRoot = root, nextSection = section, nextVisible = visible) {
-    if (view.generation > 0 && nextRoot === root && nextSection === section && nextVisible === visible) return;
+    const accountPage=nextRoot==='hongguo'&&nextSection==='settings'&&category==='page';
+    if (view.generation > 0 && nextRoot === root && nextSection === section && nextVisible === visible && accountPage===lastAccountPage) return;
     const ticket = ++sequence;
+    serviceActive=false;
+    await realHongguo?.suspend(nextRoot==='hongguo'&&nextSection==='content');
+    if(ticket!==sequence)return;
+    lastAccountPage=accountPage;
     if (page && visible && !docked) scrollPositions.set(`${root}:${section}`, page.scrollTop);
     pause();
-    detachResource();
-    if(nextRoot!=='hongguo'||nextSection!=='content') serviceLease=undefined;
     root = nextRoot; section = nextSection; visible = nextVisible;
     view = { root, section, visible, generation: view.generation + 1 };
     loading = false;
@@ -113,10 +83,10 @@
     if (ticket !== sequence) return;
     if (page) page.scrollTop = scrollPositions.get(`${root}:${section}`) ?? 0;
     try {
-      const lease = await call<View>('transition', { root, section, visible });
+      const lease = await call<View>('transition', { root, section, visible, accountPage });
       if (ticket !== sequence) return;
       view = lease;
-      if (servicePlayback && active(view,'hongguo') && mediaMode==='player' && serviceLease!==undefined && !resource) await prepareResource(false);
+      serviceActive = root==='hongguo' && visible && (section==='content'||accountPage);
       if (active(view, 'news') && feeds.length === 0) await refresh();
     } catch (error) { if(ticket===sequence) notice = String(error); }
   }
@@ -131,19 +101,14 @@
     finally { if (accepts(view, request)) loading = false; }
   }
   async function action(action: string) {
-    if (action !== 'show') { pause(); detachResource(); }
+    if (action !== 'show') { pause(); await realHongguo?.suspend(action!=='close'); }
     try { await call('window_action', { action }); } catch (error) { notice = String(error); }
   }
   function toggleModules() {
-    if (section !== 'modules') modulesReturn = section;
-    void change(root, moduleTarget(section, modulesReturn));
+    void change(root, moduleTarget(section));
   }
   async function togglePlayback() {
     if (!active(view, 'hongguo') || mediaMode !== 'player' || !video) return;
-    if (servicePlayback && !resource) {
-      try { await prepareResource(true); } catch(error) { if(active(view,'hongguo')) notice=String(error);return; }
-      if (!active(view,'hongguo')) return;
-    }
     if (!video.paused) { pause(); return; }
     const element = video;
     const generation = view.generation;
@@ -160,14 +125,16 @@
     await tick();
     await togglePlayback();
   }
-  function returnToList() { pause(); detachResource();if(servicePlayback&&serviceLease!==undefined) void serviceCall('playback.close',{session:serviceLease}).catch(error=>notice=String(error));serviceLease=undefined;mediaMode = returnTo; }
+  function returnToList() { pause(); mediaMode = returnTo; }
   function favoriteSample() {
     sampleFavorite = !sampleFavorite;
     notice = sampleFavorite ? '已收藏本地样例 · 未写入红果账号' : '已取消本地样例收藏 · 未写入红果账号';
   }
   function mediaKey(event: KeyboardEvent) {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement) return;
-    if (!active(view, 'hongguo') || mediaMode !== 'player') return;
+    if (!active(view, 'hongguo')) return;
+    if(servicePlayback){if(event.code==='Space'){event.preventDefault();void realHongguo?.toggle();}else if(['ArrowRight','ArrowLeft'].includes(event.code)){event.preventDefault();realHongguo?.seekRelative(event.code==='ArrowRight'?5:-5);}return;}
+    if(mediaMode!=='player')return;
     if (event.code === 'Space') { event.preventDefault(); void togglePlayback(); }
     if (event.code === 'ArrowRight' || event.code === 'ArrowLeft') { event.preventDefault(); video.currentTime = Math.max(0, Math.min(duration, video.currentTime + (event.code === 'ArrowRight' ? 5 : -5))); }
   }
@@ -180,7 +147,7 @@
       });
     }
     // Native window events own page activation; late browser visibility events only pause media.
-    const visibility = () => { if (document.hidden) pause(); };
+    const visibility = () => { if (document.hidden) { pause();realHongguo?.pause(); } };
     document.addEventListener('visibilitychange', visibility);
     if (native) {
       void Promise.all([
@@ -193,7 +160,7 @@
       subscribe<string>('shell-error', value => { notice = value; })
       ]).then(() => { eventsReady = true; }).catch(() => { notice = '窗口通知订阅失败，请重新打开原型。'; });
       void call('contract_templates').then(() => { bridge = true; });
-      void call<{media_route:string}>('snapshot').then(value=>servicePlayback=value.media_route==='browser_service');
+      void call<{media_route:string}>('snapshot').then(value=>{servicePlayback=value.media_route==='browser_service';if(servicePlayback)notice='红果真实服务已就绪，选择红果短剧后登录';});
       void change();
     } else notice = '浏览器设计预览 · 原生交互请启动独立桌面原型';
     return () => { disposed = true; pause(); unlisteners.forEach(dispose => dispose()); document.removeEventListener('visibilitychange', visibility); };
@@ -201,6 +168,7 @@
 </script>
 
 <svelte:window onkeydown={mediaKey}/>
+{#snippet settingsNavigation()}<aside class="settings-nav" aria-label="设置分类"><div class="eyebrow">当前功能</div><button class:chosen={category === 'page'} onclick={() => { category = 'page';void change(); }}>{root === 'news' ? '新闻设置' : '红果账号'}</button><div class="eyebrow">通用</div>{#each [['appearance', '显示设置'], ['system', '系统设置'], ['about', '关于我们']] as [id, label]}<button class:chosen={category === id} onclick={() => { category = id;void change(); }}>{label}</button>{/each}<button class="back-button" onclick={() => change(root, 'content')}><Icon name="arrow" size={16}/>返回页面</button></aside>{/snippet}
 <div class:dark class:docked class="app-shell" data-testid="shell" data-root={root} data-section={section} data-visible={visible} data-docked={docked} data-events-ready={eventsReady} data-frames={frameCount}>
   {#if docked}<button class="dock-button" aria-label="展开 LazyBuddy" title="展开 LazyBuddy" onclick={() => action('expand')}><img src={logoUrl} alt=""/></button>{/if}
   <header class="toolbar" data-tauri-drag-region>
@@ -218,6 +186,7 @@
   </header>
 
   <main class="page" bind:this={page}>
+    {#if servicePlayback}<Hongguo bind:this={realHongguo} active={serviceActive&&!docked} showing={root==='hongguo'&&(section==='content'||section==='settings'&&category==='page')} accountOnly={section==='settings'} notice={text=>notice=text} navigation={settingsNavigation}/>{/if}
     {#if section === 'modules'}
       <section class="content-width module-page">
         <div class="module-heading"><h1>可用功能</h1><button onclick={toggleModules}><Icon name="arrow" size={16}/>返回</button></div>
@@ -228,8 +197,9 @@
         </div>
       </section>
     {:else if section === 'settings'}
+      {#if !(servicePlayback&&root==='hongguo'&&category==='page')}
       <section class="settings-layout content-width">
-        <aside class="settings-nav" aria-label="设置分类"><div class="eyebrow">当前功能</div><button class:chosen={category === 'page'} onclick={() => category = 'page'}>{root === 'news' ? '新闻设置' : '短剧设置'}</button><div class="eyebrow">通用</div>{#each [['appearance', '显示设置'], ['system', '系统设置'], ['about', '关于我们']] as [id, label]}<button class:chosen={category === id} onclick={() => category = id}>{label}</button>{/each}<button class="back-button" onclick={() => change(root, 'content')}><Icon name="arrow" size={16}/>返回页面</button></aside>
+        {@render settingsNavigation()}
         <div class="settings-content">
           <h1>{category === 'page' ? (root === 'news' ? '新闻设置' : '短剧设置') : category === 'appearance' ? '显示设置' : category === 'system' ? '系统设置' : '关于我们'}</h1>
           {#if category === 'appearance'}
@@ -249,6 +219,7 @@
           {/if}
         </div>
       </section>
+      {/if}
     {:else if root === 'news'}
       <section class="content-width news-page">
         <div class="list-toolbar"><div class="tabs"><button class:active={filter === 'all'} onclick={() => filter = 'all'}>全部来源<span>3</span></button><button class:active={filter === 'followed'} onclick={() => filter = 'followed'}>已关注<span>{followed.length}</span></button></div><button class="refresh-button" onclick={refresh} disabled={loading}><Icon name="refresh" size={15}/>{loading ? '获取中' : '刷新'}</button></div>
@@ -259,11 +230,11 @@
         </div>
         {#if filter === 'followed' && followed.length === 0}<div class="list-empty">暂无关注来源</div>{/if}
       </section>
-    {:else}
+    {:else if !servicePlayback}
       {#if mediaMode === 'player'}
         <section class="player-page">
           <div class="video-stage" class:paused={!playing}>
-            <video bind:this={video} src={servicePlayback ? resource : 'http://sample.localhost/clip'} preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => { if(video.readyState>0) position = video.currentTime; }} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onplay={mediaState} onpause={mediaState} onended={mediaState} onerror={() => notice = servicePlayback ? '浏览器无法读取或解码该媒体资源' : '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
+            <video bind:this={video} src="http://sample.localhost/clip" preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => { if(video.readyState>0) position = video.currentTime; }} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onplay={mediaState} onpause={mediaState} onended={mediaState} onerror={() => notice = '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
             <div class="video-top"><button class="video-back" aria-label="返回列表" onclick={returnToList}><Icon name="arrow" size={17}/></button><span class="video-title">本地播放样例</span><button class="video-favorite" aria-label={sampleFavorite ? '取消收藏样例' : '收藏样例'} onclick={favoriteSample}><Icon name="star" size={18}/></button></div>
             {#if !playing}<button class="center-play" aria-label="播放样例" onclick={togglePlayback}><Icon name="play" size={28}/></button>{/if}
             <div class="video-bottom"><input class="seek" aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.05" value={position} oninput={event => position = Number(event.currentTarget.value)} onchange={() => video.currentTime = position}/><div class="video-controls"><button aria-label={playing ? '暂停' : '播放'} onclick={togglePlayback}><Icon name={playing ? 'pause' : 'play'}/></button><span class="time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><span class="control-spacer"></span><button aria-label={muted ? '取消静音' : '静音'} onclick={() => muted = !muted}><Icon name={muted ? 'mute' : 'volume'}/></button><input class="volume" aria-label="音量" type="range" min="0" max="1" step="0.05" bind:value={volume}/></div></div>

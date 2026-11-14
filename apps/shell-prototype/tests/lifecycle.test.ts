@@ -18,8 +18,10 @@ test('global buttons toggle closed and media times stay readable', () => {
   assert.equal(formatTime(65.9), '01:05');
   assert.equal(formatTime(NaN), '00:00');
 });
-test('module back returns to the page that opened it, including settings', () => {
-  assert.equal(moduleTarget('content', 'settings'), 'modules');
-  assert.equal(moduleTarget('modules', 'content'), 'content');
-  assert.equal(moduleTarget('modules', 'settings'), 'settings');
+test('modules and settings are siblings; closing either returns to content', () => {
+  assert.equal(moduleTarget('content'), 'modules');
+  assert.equal(moduleTarget('settings'), 'modules');
+  assert.equal(moduleTarget('modules'), 'content');
+  assert.equal(toggleSection('modules', 'settings'), 'settings');
+  assert.equal(toggleSection('settings', 'settings'), 'content');
 });

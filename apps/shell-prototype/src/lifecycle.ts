@@ -10,8 +10,8 @@ export function accepts(current: View, request: View): boolean {
 export function toggleSection(current: Section, next: Section): Section {
   return current === next ? 'content' : next;
 }
-export function moduleTarget(current: Section, previous: Section): Section {
-  return current === 'modules' ? previous : 'modules';
+export function moduleTarget(current: Section): Section {
+  return toggleSection(current, 'modules');
 }
 export function formatTime(seconds: number): string {
   const safe = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
