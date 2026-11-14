@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{ops::Range, path::PathBuf, sync::Mutex};
 use tauri::{Emitter, Manager};
 mod dock;
+mod playback;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -57,16 +58,17 @@ fn transition(
     state: tauri::State<Mutex<Model>>,
     window: tauri::WebviewWindow,
 ) -> View {
-    state
-        .lock()
-        .unwrap()
-        .transition(root, section, visible && !dock::is_docked(&window))
+    let visible = visible && !dock::is_docked(&window);
+    let page = root == Root::Hongguo && section == Section::Content;
+    let view = state.lock().unwrap().transition(root, section, visible);
+    window.state::<playback::State>().context(page, visible);
+    view
 }
 #[tauri::command]
 fn snapshot(state: tauri::State<Mutex<Model>>, window: tauri::WebviewWindow) -> serde_json::Value {
     let state = state.lock().unwrap();
     serde_json::json!({"view":state.view,"feed_requests":state.feed_requests,
-        "media_route":"browser_h264_sample", "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
+        "media_route":if playback::enabled(){"browser_service"}else{"browser_h264_sample"}, "native_texture_integrated":false,"desktop":dock::snapshot(&window)})
 }
 #[tauri::command]
 async fn demo_feed(
@@ -117,6 +119,9 @@ fn visibility(window: &tauri::WebviewWindow, visible: bool) {
     let view = state.view.clone();
     let changed = view.visible != visible;
     state.transition(view.root, view.section, visible);
+    let page = state.view.root == Root::Hongguo && state.view.section == Section::Content;
+    drop(state);
+    window.state::<playback::State>().context(page, visible);
     if changed {
         let _ = window.emit("shell-visibility", visible);
     }
@@ -143,7 +148,16 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
         }
         "show" => show_without_focus(&window)?,
         "expand" => dock::expand(&window).map_err(|_| "expand failed")?,
-        "close" => window.app_handle().exit(0),
+        "close" => {
+            let Some(completed) = window.state::<playback::State>().shutdown() else {
+                return Ok(());
+            };
+            let app = window.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                completed.await;
+                app.exit(0);
+            });
+        }
         _ => return Err("unknown window action".into()),
     }
     Ok(())
@@ -257,13 +271,15 @@ fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(Model::default()))
         .manage(Mutex::new(dock::Dock::default()))
+        .manage(playback::State::default())
         .invoke_handler(tauri::generate_handler![
             transition,
             snapshot,
             demo_feed,
             contract_templates,
             window_action,
-            resize
+            resize,
+            playback::playback_call
         ])
         .register_uri_scheme_protocol("sample", |_, request| clip_response(&request))
         .setup(|app| {
@@ -286,6 +302,13 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    let _ = window_action("close", webview);
+                }
+                return;
+            }
             if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 window.app_handle().exit(0);
             }

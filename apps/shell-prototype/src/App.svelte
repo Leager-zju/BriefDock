@@ -24,6 +24,43 @@
   let loading = $state(false);
   let category = $state('page');
   let video = $state<HTMLVideoElement>(undefined!);
+  let servicePlayback = $state(false);
+  let resource = $state<string>();
+  let serviceLease: number | undefined;
+  let cancelMetadata: (() => void) | undefined;
+  type Playback = { session: number; loading: boolean; prepared: boolean; resource: {url:string;mime:string}|null };
+  const serviceCall = (method:string,args:Record<string,unknown>={}) => call<Playback>('playback_call',{method,args});
+  function detachResource() {
+    cancelMetadata?.();
+    if (!servicePlayback || !resource) return;
+    if (video && video.readyState > 0) position = video.currentTime;
+    resource = undefined;
+    if (video) { video.removeAttribute('src'); video.load(); }
+  }
+  async function prepareResource(open:boolean) {
+    if (resource) return;
+    const ticket = sequence;
+    let value = await serviceCall(open ? 'playback.open' : 'playback.resume', open ? {series:'123',episode:1,quality:'720p',origin:location.origin} : {session:serviceLease});
+    serviceLease=value.session;
+    const end=performance.now()+60000;
+    while(value.loading && performance.now()<end && ticket===sequence && active(view,'hongguo')) {
+      await new Promise(resolve=>setTimeout(resolve,150));
+      if(ticket!==sequence || !active(view,'hongguo')) return;
+      value=await serviceCall('playback.status');
+    }
+    if(ticket!==sequence || !active(view,'hongguo')) return;
+    if(!value.prepared || !value.resource) { await serviceCall('playback.close',{session:serviceLease});serviceLease=undefined;throw new Error('媒体资源未准备完成'); }
+    const element=video;
+    const ready = new Promise<void>((resolve,reject)=>{
+      const clear=()=>{element.removeEventListener('loadedmetadata',loaded);element.removeEventListener('error',failed);cancelMetadata=undefined;};
+      const loaded=()=>{clear();resolve();};
+      const failed=()=>{clear();reject(new Error('浏览器无法解码该媒体资源'));};
+      cancelMetadata=()=>{clear();reject(new Error('媒体页面已暂停'));};
+      element.addEventListener('loadedmetadata',loaded,{once:true});element.addEventListener('error',failed,{once:true});
+    });
+    resource=value.resource.url;
+    await tick();await ready;
+  }
   let playing = $state(false);
   let position = $state(0);
   let duration = $state(0);
@@ -67,6 +104,8 @@
     const ticket = ++sequence;
     if (page && visible && !docked) scrollPositions.set(`${root}:${section}`, page.scrollTop);
     pause();
+    detachResource();
+    if(nextRoot!=='hongguo'||nextSection!=='content') serviceLease=undefined;
     root = nextRoot; section = nextSection; visible = nextVisible;
     view = { root, section, visible, generation: view.generation + 1 };
     loading = false;
@@ -77,8 +116,9 @@
       const lease = await call<View>('transition', { root, section, visible });
       if (ticket !== sequence) return;
       view = lease;
+      if (servicePlayback && active(view,'hongguo') && mediaMode==='player' && serviceLease!==undefined && !resource) await prepareResource(false);
       if (active(view, 'news') && feeds.length === 0) await refresh();
-    } catch (error) { notice = String(error); }
+    } catch (error) { if(ticket===sequence) notice = String(error); }
   }
   async function refresh() {
     if (!active(view, 'news') || loading) return;
@@ -91,7 +131,7 @@
     finally { if (accepts(view, request)) loading = false; }
   }
   async function action(action: string) {
-    if (action !== 'show') pause();
+    if (action !== 'show') { pause(); detachResource(); }
     try { await call('window_action', { action }); } catch (error) { notice = String(error); }
   }
   function toggleModules() {
@@ -100,6 +140,10 @@
   }
   async function togglePlayback() {
     if (!active(view, 'hongguo') || mediaMode !== 'player' || !video) return;
+    if (servicePlayback && !resource) {
+      try { await prepareResource(true); } catch(error) { if(active(view,'hongguo')) notice=String(error);return; }
+      if (!active(view,'hongguo')) return;
+    }
     if (!video.paused) { pause(); return; }
     const element = video;
     const generation = view.generation;
@@ -116,7 +160,7 @@
     await tick();
     await togglePlayback();
   }
-  function returnToList() { pause(); mediaMode = returnTo; }
+  function returnToList() { pause(); detachResource();if(servicePlayback&&serviceLease!==undefined) void serviceCall('playback.close',{session:serviceLease}).catch(error=>notice=String(error));serviceLease=undefined;mediaMode = returnTo; }
   function favoriteSample() {
     sampleFavorite = !sampleFavorite;
     notice = sampleFavorite ? '已收藏本地样例 · 未写入红果账号' : '已取消本地样例收藏 · 未写入红果账号';
@@ -149,6 +193,7 @@
       subscribe<string>('shell-error', value => { notice = value; })
       ]).then(() => { eventsReady = true; }).catch(() => { notice = '窗口通知订阅失败，请重新打开原型。'; });
       void call('contract_templates').then(() => { bridge = true; });
+      void call<{media_route:string}>('snapshot').then(value=>servicePlayback=value.media_route==='browser_service');
       void change();
     } else notice = '浏览器设计预览 · 原生交互请启动独立桌面原型';
     return () => { disposed = true; pause(); unlisteners.forEach(dispose => dispose()); document.removeEventListener('visibilitychange', visibility); };
@@ -218,7 +263,7 @@
       {#if mediaMode === 'player'}
         <section class="player-page">
           <div class="video-stage" class:paused={!playing}>
-            <video bind:this={video} src="http://sample.localhost/clip" preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => position = video.currentTime} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onplay={mediaState} onpause={mediaState} onended={mediaState} onerror={() => notice = '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
+            <video bind:this={video} src={servicePlayback ? resource : 'http://sample.localhost/clip'} preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => { if(video.readyState>0) position = video.currentTime; }} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onplay={mediaState} onpause={mediaState} onended={mediaState} onerror={() => notice = servicePlayback ? '浏览器无法读取或解码该媒体资源' : '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
             <div class="video-top"><button class="video-back" aria-label="返回列表" onclick={returnToList}><Icon name="arrow" size={17}/></button><span class="video-title">本地播放样例</span><button class="video-favorite" aria-label={sampleFavorite ? '取消收藏样例' : '收藏样例'} onclick={favoriteSample}><Icon name="star" size={18}/></button></div>
             {#if !playing}<button class="center-play" aria-label="播放样例" onclick={togglePlayback}><Icon name="play" size={28}/></button>{/if}
             <div class="video-bottom"><input class="seek" aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.05" value={position} oninput={event => position = Number(event.currentTarget.value)} onchange={() => video.currentTime = position}/><div class="video-controls"><button aria-label={playing ? '暂停' : '播放'} onclick={togglePlayback}><Icon name={playing ? 'pause' : 'play'}/></button><span class="time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><span class="control-spacer"></span><button aria-label={muted ? '取消静音' : '静音'} onclick={() => muted = !muted}><Icon name={muted ? 'mute' : 'volume'}/></button><input class="volume" aria-label="音量" type="range" min="0" max="1" step="0.05" bind:value={volume}/></div></div>

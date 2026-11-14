@@ -7,7 +7,7 @@
   "app": {
     "windows": [{ "label": "main", "title": "LazyBuddy · 界面原型", "width": 780, "height": 540, "minWidth": 440, "minHeight": 440, "decorations": false, "shadow": false, "visible": false, "focus": false }],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' http://sample.localhost; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' http://sample.localhost http://127.0.0.1:*; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'",
       "capabilities": [{ "identifier": "shell", "windows": ["main"], "permissions": ["core:window:allow-start-dragging", "core:event:allow-listen", "core:event:allow-unlisten"] }]
     }
   },
