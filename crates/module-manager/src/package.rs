@@ -20,6 +20,7 @@ fn download_agent(timeout: Duration) -> ureq::Agent {
                 .build(),
         )
         .timeout_connect(Some(Duration::from_secs(15)))
+        .timeout_per_read(Some(Duration::from_secs(60)))
         .timeout_global(Some(timeout))
         .build()
         .new_agent()
@@ -224,7 +225,7 @@ impl Manager {
             .create_new(true)
             .open(&archive)?;
         let result = (|| {
-            let mut response = download_agent(Duration::from_secs(300))
+            let mut response = download_agent(Duration::from_secs(1800))
                 .get(&package.url)
                 .call()
                 .map_err(|error| download_error(&package.id, error))?;
