@@ -38,7 +38,25 @@ try{
   await invoke('window_action',{action:'show'});
   await until(async()=>await page.locator('.source-card').count()===3);
   assert.equal((await invoke('snapshot')).feed_requests,1);
+  assert.equal(await page.locator('.source-card li').count(),30);
+  assert.equal(await page.locator('.page').evaluate(page=>page.scrollHeight>page.clientHeight+1),false);
   await page.screenshot({path:path.join(output,'news-light.png')});
+  await page.getByRole('button',{name:'关注微博热搜',exact:true}).click();
+  await page.getByRole('button',{name:/^已关注/}).click();
+  assert.equal(await page.locator('.source-card').count(),1);
+  assert.equal(await page.locator('.source-card h2').textContent(),'微博热搜');
+  await page.getByRole('button',{name:/^全部来源/}).click();
+  await invoke('resize',{width:460,height:540});
+  await page.waitForFunction(()=>window.innerWidth===460);
+  await page.screenshot({path:path.join(output,'news-narrow.png')});
+  const visibleCards=await page.locator('.source-card').evaluateAll(cards=>cards.filter(card=>card.getBoundingClientRect().bottom<=document.querySelector('.info-bar').getBoundingClientRect().top).length);
+  assert.equal(visibleCards,2);
+  await invoke('resize',{width:780,height:540});
+  if(process.argv.includes('--news-only')){
+    const report={passed:true,actual_webview:true,window:[780,540],items_without_scrolling:30,narrow_window:[460,540],narrow_items_without_scrolling:20,independent_follow_filter:true};
+    await writeFile(path.join(output,'compact-news.json'),JSON.stringify(report,null,2));
+    console.log(JSON.stringify(report));
+  }else{
   // Repeated current-root selection is retained rather than refetched.
   await page.getByLabel('选择功能').selectOption('news');
   await delay(150);assert.equal((await invoke('snapshot')).feed_requests,1);
@@ -53,10 +71,24 @@ try{
   await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.screenshot({path:path.join(output,'news-dark.png')});
   await page.getByLabel('选择功能').selectOption('hongguo');
+  const searchForm=page.getByRole('search');
+  await page.getByLabel('搜索短剧',{exact:true}).fill('不存在的样例');
+  await searchForm.getByRole('button',{name:'搜索',exact:true}).click();
+  await page.getByText('没有搜索结果',{exact:true}).waitFor();
+  await page.getByLabel('搜索短剧',{exact:true}).fill('');
+  await searchForm.getByRole('button',{name:'搜索',exact:true}).click();
+  await page.getByRole('button',{name:'收藏样例',exact:true}).click();
+  await page.getByRole('button',{name:'收藏',exact:true}).click();
+  assert.equal(await page.locator('.media-result').count(),1);
+  await page.screenshot({path:path.join(output,'media-favorites.png')});
+  await page.getByRole('button',{name:'打开播放页',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('video')?.duration>0);
   const capabilities=await page.evaluate(()=>({user_agent:navigator.userAgent,h264:document.querySelector('video').canPlayType('video/mp4; codecs="avc1.42E01E"'),hevc:document.querySelector('video').canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"'),webview_texture_stream:typeof window.chrome?.webview?.getTextureStream,video_frame_callback:typeof HTMLVideoElement.prototype.requestVideoFrameCallback}));
-  await page.getByRole('button',{name:'播放样例',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('video').currentTime>.6);
+  await invoke('resize',{width:960,height:700});
+  await page.waitForFunction(()=>document.querySelector('video').currentTime>.9);
+  assert.equal(await page.locator('video').evaluate(video=>video.paused),false);
+  await invoke('resize',{width:1000,height:720});
   await page.getByRole('button',{name:'暂停',exact:true}).click();
   const frame=await page.evaluate(()=>{const video=document.querySelector('video');const canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0);const bytes=ctx.getImageData(0,0,canvas.width,canvas.height).data;let colored=0;for(let i=0;i<bytes.length;i+=4){if(bytes[i+1]>bytes[i]+5)colored++;}return {width:video.videoWidth,height:video.videoHeight,decoded_frames:video.getVideoPlaybackQuality().totalVideoFrames,colored_pixels:colored};});
   assert.equal(frame.width,1280);assert.equal(frame.height,720);assert.ok(frame.decoded_frames>3);assert.ok(frame.colored_pixels>10000);
@@ -79,6 +111,12 @@ try{
   assert.ok(Math.abs(paused.time-after.time)<.1);assert.equal(after.frames,paused.frames);assert.equal((await invoke('snapshot')).feed_requests,before);
   await invoke('window_action',{action:'show'});
   assert.equal(await page.locator('video').evaluate(video=>video.paused),true);
+  await page.getByRole('button',{name:'返回列表',exact:true}).click();
+  assert.equal(await page.locator('.media-result').count(),1);
+  assert.equal(await page.getByRole('button',{name:'收藏',exact:true}).getAttribute('class'),'active');
+  await page.getByRole('button',{name:'打开播放页',exact:true}).click();
+  await page.getByRole('button',{name:'暂停',exact:true}).waitFor();
+  await page.getByRole('button',{name:'暂停',exact:true}).click();
   await page.getByRole('button',{name:'播放样例',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('video').paused);
   await invoke('window_action',{action:'minimize'});
@@ -97,11 +135,12 @@ try{
   await page.getByRole('button',{name:'关于我们',exact:true}).click();
   const idle=await resourceSample();
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  const report={passed:true,actual_webview:true,frontend_unit_tests:3,rust_unit_tests:3,three_region_shell:true,modules_toggle:true,narrow_settings_unclipped:true,actual_h264_frame:frame,seek_verified:true,hidden_paused:true,minimized_paused:true,hidden_callback_stopped:true,restore_autoplay:false,inactive_page_request_count_unchanged:true,capabilities,idle,hidden,native_d3d12_texture_integrated:false,real_account_tested:false,production_install_changed:false,notes:['HTML video validates browser decoding and CSS overlay only; native GPU texture integration is still a migration gate.','Working-set sum may double-count shared pages. CPU is percent of one logical core over a short sample.']};
+  const report={passed:true,actual_webview:true,frontend_unit_tests:3,rust_unit_tests:3,three_region_shell:true,compact_news_window:[780,540],news_items_without_scrolling:30,followed_sources_independent:true,modules_toggle:true,narrow_settings_unclipped:true,actual_h264_frame:frame,seek_verified:true,resize_keeps_playing:true,hidden_paused:true,minimized_paused:true,hidden_callback_stopped:true,restore_autoplay:false,inactive_page_request_count_unchanged:true,capabilities,idle,hidden,native_d3d12_texture_integrated:false,real_account_tested:false,production_install_changed:false,notes:['HTML video validates browser decoding and CSS overlay only; native GPU texture integration is still a migration gate.','Working-set sum may double-count shared pages. CPU is percent of one logical core over a short sample.']};
   await writeFile(path.join(output,'desktop.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+  }
 }finally{
   if(page)await page.evaluate(()=>window.__TAURI_INTERNALS__.invoke('window_action',{action:'close'})).catch(()=>{});
   if(browser)await browser.close().catch(()=>{});
-  if(child.exitCode===null){await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(10000)]);if(child.exitCode===null)child.kill();}
+  if(child.exitCode===null){await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(10000)]);if(child.exitCode===null){child.kill();throw Error('prototype did not exit normally');}}
   if(stderr)await writeFile(path.join(output,'stderr.txt'),stderr);
 }

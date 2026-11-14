@@ -85,9 +85,9 @@ async fn demo_feed(
         return Err("stale".into());
     }
     Ok(serde_json::json!([
-      {"id":"bilibili","name":"哔哩哔哩","tag":"B","color":"pink","items":["那些让人忍不住重看的电影片段","周末城市漫步，有哪些好去处","把普通的一天拍成电影","这段旋律，你一定听过","开发者们正在讨论的新工具"]},
-      {"id":"weibo","name":"微博热搜","tag":"微","color":"orange","items":["今天有哪些值得关注的事","秋天的城市有了新的颜色","你最想分享的一张照片","年轻人如何安排自己的周末","给日常生活留一点空白"]},
-      {"id":"zhihu","name":"知乎热榜","tag":"知","color":"blue","items":["有哪些值得长期坚持的小习惯？","你如何整理自己的信息来源？","什么样的工作环境更让人专注？","有什么相见恨晚的软件？","你最近读到了哪些有趣的观点？"]}
+      {"id":"bilibili","name":"哔哩哔哩","tag":"B","color":"pink","items":["那些让人忍不住重看的电影片段","周末城市漫步，有哪些好去处","把普通的一天拍成电影","这段旋律，你一定听过","开发者们正在讨论的新工具","一份简单实用的周末出行清单","镜头记录下的日常生活","那些值得收藏的学习方法","怎样开始自己的第一个小项目","用十分钟了解一门新技术"]},
+      {"id":"weibo","name":"微博热搜","tag":"微","color":"orange","items":["今天有哪些值得关注的事","秋天的城市有了新的颜色","你最想分享的一张照片","年轻人如何安排自己的周末","给日常生活留一点空白","你会选择怎样的通勤方式","一杯咖啡里的片刻放松","城市街角新开的小店","今天遇到的一个温暖瞬间","有哪些简单好做的晚餐"]},
+      {"id":"zhihu","name":"知乎热榜","tag":"知","color":"blue","items":["有哪些值得长期坚持的小习惯？","你如何整理自己的信息来源？","什么样的工作环境更让人专注？","有什么相见恨晚的软件？","你最近读到了哪些有趣的观点？","有哪些改善桌面体验的小物件？","你会怎样规划一个自由的下午？","什么样的信息值得长期保存？","如何更轻松地保持阅读习惯？","你有哪些简单有效的休息方法？"]}
     ]))
 }
 #[tauri::command]
@@ -109,8 +109,11 @@ fn visibility(window: &tauri::WebviewWindow, visible: bool) {
     let state = window.state::<Mutex<Model>>();
     let mut state = state.lock().unwrap();
     let view = state.view.clone();
+    let changed = view.visible != visible;
     state.transition(view.root, view.section, visible);
-    let _ = window.emit("shell-visibility", visible);
+    if changed {
+        let _ = window.emit("shell-visibility", visible);
+    }
 }
 fn show_without_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
     let hwnd = window.hwnd().map_err(|_| "window unavailable")?;
@@ -132,7 +135,7 @@ fn window_action(action: &str, window: tauri::WebviewWindow) -> Result<(), Strin
             window.minimize().map_err(|_| "minimize failed")?;
         }
         "show" => show_without_focus(&window)?,
-        "close" => window.close().map_err(|_| "close failed")?,
+        "close" => window.app_handle().exit(0),
         _ => return Err("unknown window action".into()),
     }
     Ok(())
@@ -270,6 +273,9 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                window.app_handle().exit(0);
+            }
             if let tauri::WindowEvent::Resized(_) = event {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
                     visibility(

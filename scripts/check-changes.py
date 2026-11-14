@@ -62,18 +62,29 @@ def plan(paths, root=ROOT):
     return commands
 
 
+def changed_paths(base, root=ROOT):
+    if not base or set(base) == {'0'}:
+        # A new branch has an all-zero event.before, not a repository-wide change.
+        common = subprocess.run(['git', 'merge-base', 'HEAD', 'origin/main'], cwd=root,
+                                text=True, capture_output=True)
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+        if common.returncode == 0 and common.stdout.strip() != head:
+            base = common.stdout.strip()
+        elif subprocess.run(['git', 'rev-parse', '--verify', 'HEAD^'], cwd=root,
+                            capture_output=True).returncode == 0:
+            base = 'HEAD^'
+        else:
+            return subprocess.check_output(['git', 'diff-tree', '--root', '--no-commit-id',
+                                            '--name-only', '-r', 'HEAD'], cwd=root, text=True).splitlines()
+    return subprocess.check_output(['git', 'diff', '--name-only', base, 'HEAD'], cwd=root, text=True).splitlines()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
-    if not args.base:
-        args.base = 'HEAD^'
-    if set(args.base) != {'0'}:
-        paths = subprocess.check_output(['git', 'diff', '--name-only', args.base, 'HEAD'], cwd=ROOT, text=True).splitlines()
-    else:
-        paths = subprocess.check_output(['git', 'ls-files'], cwd=ROOT, text=True).splitlines()
-    commands = plan(paths)
+    commands = plan(changed_paths(args.base))
     for command in commands:
         print(json.dumps(command), flush=True)
         if not args.dry_run:

@@ -7,13 +7,17 @@
   type Source = { id: string; name: string; tag: string; color: string; items: string[] };
   let root = $state<Root>('news');
   let section = $state<Section>('content');
-  let visible = $state(true);
-  let view = $state<View>({ root: 'news', section: 'content', visible: true, generation: 0 });
+  let visible = $state(!document.hidden);
+  let view = $state<View>({ root: 'news', section: 'content', visible: !document.hidden, generation: 0 });
   let dark = $state(false);
   let notice = $state('离线样例 · 不连接真实新闻或红果账号');
   let feeds = $state<Source[]>([]);
   let filter = $state('all');
   let query = $state('');
+  let submittedQuery = $state('');
+  let mediaMode = $state<'search' | 'favorites' | 'player'>('search');
+  let returnTo = $state<'search' | 'favorites'>('search');
+  let sampleFavorite = $state(false);
   let loading = $state(false);
   let category = $state('page');
   let video = $state<HTMLVideoElement>(undefined!);
@@ -23,14 +27,12 @@
   let muted = $state(true);
   let volume = $state(0.5);
   let frameCount = $state(0);
-  let mediaError = $state('');
   let callback: number | undefined;
   let sequence = 0;
-  let followed = $state(false);
+  let followed = $state<string[]>([]);
   const scrollPositions = new Map<string, number>();
   let page: HTMLElement;
   let bridge = $state(false);
-  const date = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
   const native = '__TAURI_INTERNALS__' in window;
   async function call<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
     if (!native) throw new Error('请在原型桌面窗口中使用');
@@ -52,6 +54,7 @@
     callback = video.requestVideoFrameCallback(frame);
   }
   async function change(nextRoot = root, nextSection = section, nextVisible = visible) {
+    if (view.generation > 0 && nextRoot === root && nextSection === section && nextVisible === visible) return;
     const ticket = ++sequence;
     if (page) scrollPositions.set(`${root}:${section}`, page.scrollTop);
     pause();
@@ -85,8 +88,19 @@
   async function togglePlayback() {
     if (!active(view, 'hongguo') || !video) return;
     if (!video.paused) { pause(); return; }
-    try { await video.play(); playing = true; trackFrames(); notice = '正在播放本地 H.264 合成样例 · 浏览器解码'; }
-    catch { mediaError = '样例未加载。请通过原型启动脚本准备本地视频。'; }
+    try { await video.play(); playing = true; trackFrames(); notice = '正在播放本地样例'; }
+    catch { notice = '本地样例未加载，请通过原型启动脚本准备视频。'; }
+  }
+  async function openPlayer() {
+    returnTo = mediaMode === 'favorites' ? 'favorites' : 'search';
+    mediaMode = 'player';
+    await tick();
+    await togglePlayback();
+  }
+  function returnToList() { pause(); mediaMode = returnTo; }
+  function favoriteSample() {
+    sampleFavorite = !sampleFavorite;
+    notice = sampleFavorite ? '已收藏本地样例 · 未写入红果账号' : '已取消本地样例收藏 · 未写入红果账号';
   }
   function mediaKey(event: KeyboardEvent) {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLButtonElement) return;
@@ -126,7 +140,7 @@
   <main class="page" bind:this={page}>
     {#if section === 'modules'}
       <section class="content-width module-page">
-        <div class="eyebrow">YOUR WORKSPACE</div><h1>可用功能</h1>
+        <h1>可用功能</h1>
         <div class="module-list">
           {#each [{ name: '新闻速览', version: '0.1.0' }, { name: '红果短剧', version: '0.1.0' }] as module}
             <div class="module-row"><div><strong>{module.name}</strong><span class="version">{module.version}</span></div><div class="row-actions"><button disabled>更新</button><button class="subtle-danger" onclick={() => notice = '这是界面原型，未改动任何已安装功能。'}>卸载</button></div></div>
@@ -137,14 +151,14 @@
       <section class="settings-layout content-width">
         <aside class="settings-nav" aria-label="设置分类"><div class="eyebrow">当前功能</div><button class:chosen={category === 'page'} onclick={() => category = 'page'}>{root === 'news' ? '新闻设置' : '短剧设置'}</button><div class="eyebrow">通用</div>{#each [['appearance', '显示设置'], ['system', '系统设置'], ['about', '关于我们']] as [id, label]}<button class:chosen={category === id} onclick={() => category = id}>{label}</button>{/each}<button class="back-button" onclick={() => change(root, 'content')}><Icon name="arrow" size={16}/>返回页面</button></aside>
         <div class="settings-content">
-          <div class="eyebrow">PREFERENCES</div><h1>{category === 'page' ? (root === 'news' ? '新闻设置' : '短剧设置') : category === 'appearance' ? '显示设置' : category === 'system' ? '系统设置' : '关于我们'}</h1>
+          <h1>{category === 'page' ? (root === 'news' ? '新闻设置' : '短剧设置') : category === 'appearance' ? '显示设置' : category === 'system' ? '系统设置' : '关于我们'}</h1>
           {#if category === 'appearance'}
             <div class="setting-row"><div><strong>外观</strong><p>选择适合当前环境的界面主题</p></div><button onclick={() => dark = !dark}><Icon name={dark ? 'sun' : 'moon'}/>{dark ? '切换浅色' : '切换深色'}</button></div>
             <div class="setting-row"><div><strong>界面动效</strong><p>仅在操作时短暂过渡，静止时不持续绘制</p></div><span class="tag">按需</span></div>
           {:else if category === 'system'}
             <div class="setting-row"><div><strong>应用自动更新</strong><p>正式宿主仍使用已有签名更新器</p></div><span class="tag">原型不执行更新</span></div><div class="setting-row"><div><strong>后台行为</strong><p>收起后暂停视频和页面任务</p></div><span class="tag">事件驱动</span></div>
           {:else if category === 'about'}
-            <div class="about-mark">LB<span>·</span></div><h2>LazyBuddy</h2><p>给工作间隙，留一点自己的时间。</p><p class="muted">独立界面原型 · Tauri 2 / Svelte 5</p><p class="muted">Copyright © 2026 Leager · MIT</p>
+            <div class="about-mark">LB<span>·</span></div><h2>LazyBuddy</h2><p class="muted">独立界面原型 · Tauri 2 / Svelte 5</p><p class="muted">Copyright © 2026 Leager · MIT</p>
           {:else if root === 'news'}
             <div class="setting-row"><div><strong>自动刷新</strong><p>原型使用离线内容，不启用后台刷新</p></div><span class="tag">已暂停</span></div>
             <h2 class="section-title">来源管理</h2>
@@ -157,30 +171,36 @@
       </section>
     {:else if root === 'news'}
       <section class="content-width news-page">
-        <div class="page-heading"><div><div class="eyebrow">DAILY BRIEF · {date}</div><h1>新闻速览<span class="heading-dot">.</span></h1><p>关注正在发生的事，也掌握自己的节奏。</p></div><span class="sample-label">离线样例</span></div>
-        <div class="list-toolbar"><div class="tabs"><button class:active={filter === 'all'} onclick={() => filter = 'all'}>全部来源<span>3</span></button><button class:active={filter === 'followed'} onclick={() => filter = 'followed'}>已关注<span>{followed ? 1 : 0}</span></button></div><button class="refresh-button" onclick={refresh} disabled={loading}><Icon name="refresh" size={15}/>{loading ? '获取中' : '刷新'}</button></div>
+        <div class="list-toolbar"><div class="tabs"><button class:active={filter === 'all'} onclick={() => filter = 'all'}>全部来源<span>3</span></button><button class:active={filter === 'followed'} onclick={() => filter = 'followed'}>已关注<span>{followed.length}</span></button></div><button class="refresh-button" onclick={refresh} disabled={loading}><Icon name="refresh" size={15}/>{loading ? '获取中' : '刷新'}</button></div>
         <div class="source-grid">
-          {#each feeds.filter((_, index) => filter === 'all' || (followed && index === 0)) as source}
-            <article class="source-card"><div class="source-heading"><span class="source-mark {source.color}">{source.tag}</span><div><h2>{source.name}</h2><span>热榜 · 样例内容</span></div><button class="icon-button favorite" class:followed aria-label="关注来源" onclick={() => followed = !followed}><Icon name="star" size={16}/></button></div><ol>{#each source.items as item, index}<li><span class:top-rank={index < 3} class="rank">{String(index + 1).padStart(2, '0')}</span><button onclick={() => notice = '离线样例未连接外部新闻链接。'}>{item}</button></li>{/each}</ol><div class="card-foot"><span>5 条样例</span><span>刚刚更新</span></div></article>
+          {#each feeds.filter(source => filter === 'all' || followed.includes(source.id)) as source}
+            <article class="source-card"><div class="source-heading"><span class="source-mark {source.color}">{source.tag}</span><div><h2>{source.name}</h2><span>热榜</span></div><button class="icon-button favorite" class:followed={followed.includes(source.id)} aria-label={`关注${source.name}`} onclick={() => followed = followed.includes(source.id) ? followed.filter(id => id !== source.id) : [...followed, source.id]}><Icon name="star" size={16}/></button></div><ol>{#each source.items as item, index}<li><span class:top-rank={index < 3} class="rank">{String(index + 1).padStart(2, '0')}</span><button title={item} onclick={() => notice = '离线样例未连接外部新闻链接。'}>{item}</button></li>{/each}</ol><div class="card-foot"><span>{source.items.length} 条样例</span><span>刚刚更新</span></div></article>
           {/each}
         </div>
-        {#if filter === 'followed' && !followed}<div class="empty-state"><Icon name="star" size={28}/><h2>留下你感兴趣的来源</h2><p>在来源卡片上点击星标，即可在这里查看。</p></div>{/if}
-        <div class="quiet-note"><span></span>每个功能独立运行，未选中的页面保持安静。</div>
+        {#if filter === 'followed' && followed.length === 0}<div class="list-empty">暂无关注来源</div>{/if}
       </section>
     {:else}
-      <section class="content-width media-page">
-        <div class="page-heading"><div><div class="eyebrow">SHORT BREAK</div><h1>红果短剧<span class="heading-dot">.</span></h1></div><span class="sample-label">本地视频验证</span></div>
-        <div class="media-toolbar"><div class="tabs"><button class="active">搜索</button><button onclick={() => notice = '此处仅为界面原型，未读取官方账号收藏。'}>收藏</button></div><label class="search-box"><Icon name="search" size={16}/><input aria-label="搜索短剧" placeholder="搜索感兴趣的短剧" bind:value={query}/><span>↵</span></label></div>
-        <div class="video-stage" class:paused={!playing}>
-          <video bind:this={video} src="http://sample.localhost/clip" preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => position = video.currentTime} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); mediaError = ''; }} onended={pause} onerror={() => mediaError = '本地视频尚未准备，运行启动脚本后即可播放。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
-          <div class="video-top"><span class="video-back"><Icon name="arrow" size={17}/>播放验证</span><span>H.264 · 本地合成样例</span></div>
-          {#if !playing}<button class="center-play" aria-label="播放样例" onclick={togglePlayback}><Icon name="play" size={28}/></button>{/if}
-          {#if mediaError}<div class="media-error">{mediaError}</div>{/if}
-          <div class="video-bottom"><input class="seek" aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.05" value={position} oninput={event => position = Number(event.currentTarget.value)} onchange={() => video.currentTime = position}/><div class="video-controls"><button disabled aria-label="上一集"><Icon name="previous"/></button><button aria-label={playing ? '暂停' : '播放'} onclick={togglePlayback}><Icon name={playing ? 'pause' : 'play'}/></button><button disabled aria-label="下一集"><Icon name="next"/></button><span class="time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><span class="control-spacer"></span><button class="quality" disabled>720P</button><button aria-label={muted ? '取消静音' : '静音'} onclick={() => muted = !muted}><Icon name={muted ? 'mute' : 'volume'}/></button><input class="volume" aria-label="音量" type="range" min="0" max="1" step="0.05" bind:value={volume}/></div></div>
-        </div>
-        <div class="media-caption"><div><h2>给界面一点空间</h2><p>浏览器视频与覆盖控件验证 · 非红果真实内容</p></div><span class="tag">8 秒合成片段</span></div>
-      </section>
+      {#if mediaMode === 'player'}
+        <section class="player-page">
+          <div class="video-stage" class:paused={!playing}>
+            <video bind:this={video} src="http://sample.localhost/clip" preload="metadata" crossorigin="anonymous" playsinline bind:muted bind:volume ontimeupdate={() => position = video.currentTime} onloadedmetadata={() => { duration = video.duration; video.currentTime = Math.min(position, duration); }} onended={pause} onerror={() => notice = '本地视频未准备，请通过原型启动脚本生成样例。'} aria-label="本地合成测试视频"><track kind="captions"/></video>
+            <div class="video-top"><button class="video-back" aria-label="返回列表" onclick={returnToList}><Icon name="arrow" size={17}/></button><span class="video-title">本地播放样例</span><button class="video-favorite" aria-label={sampleFavorite ? '取消收藏样例' : '收藏样例'} onclick={favoriteSample}><Icon name="star" size={18}/></button></div>
+            {#if !playing}<button class="center-play" aria-label="播放样例" onclick={togglePlayback}><Icon name="play" size={28}/></button>{/if}
+            <div class="video-bottom"><input class="seek" aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.05" value={position} oninput={event => position = Number(event.currentTarget.value)} onchange={() => video.currentTime = position}/><div class="video-controls"><button aria-label={playing ? '暂停' : '播放'} onclick={togglePlayback}><Icon name={playing ? 'pause' : 'play'}/></button><span class="time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><span class="control-spacer"></span><button aria-label={muted ? '取消静音' : '静音'} onclick={() => muted = !muted}><Icon name={muted ? 'mute' : 'volume'}/></button><input class="volume" aria-label="音量" type="range" min="0" max="1" step="0.05" bind:value={volume}/></div></div>
+          </div>
+        </section>
+      {:else}
+        <section class="media-library">
+          <div class="list-toolbar"><div class="tabs"><button class:active={mediaMode === 'search'} onclick={() => mediaMode = 'search'}>搜索</button><button class:active={mediaMode === 'favorites'} onclick={() => mediaMode = 'favorites'}>收藏</button></div></div>
+          {#if mediaMode === 'search'}
+            <form class="media-search" role="search" onsubmit={event => { event.preventDefault(); submittedQuery = query.trim(); notice = '离线样例搜索完成 · 未连接红果账号'; }}><label class="search-box"><Icon name="search" size={16}/><input aria-label="搜索短剧" placeholder="搜索短剧" bind:value={query}/></label><button type="submit">搜索</button></form>
+          {/if}
+          {#if mediaMode === 'favorites' ? sampleFavorite : '本地播放样例'.includes(submittedQuery)}
+            <div class="media-result"><div><h2>本地播放样例</h2><span>共 1 集</span></div><div class="row-actions"><button aria-label={sampleFavorite ? '取消收藏样例' : '收藏样例'} onclick={favoriteSample}><Icon name="star" size={15}/>{sampleFavorite ? '已收藏' : '收藏'}</button><button aria-label="打开播放页" onclick={openPlayer}><Icon name="play" size={15}/>播放</button></div></div>
+          {:else}<div class="list-empty">{mediaMode === 'favorites' ? '暂无收藏' : '没有搜索结果'}</div>{/if}
+        </section>
+      {/if}
     {/if}
   </main>
-  <footer class="info-bar" aria-live="polite"><span class="status-dot"></span><span class="notice">{notice}</span><span class="footer-detail">{bridge ? 'Rust API 已连接' : '界面预览'}<span>·</span>PROTOTYPE</span></footer>
+  <footer class="info-bar" aria-live="polite"><span class="status-dot"></span><span class="notice">{notice}</span><span class="footer-detail">{bridge ? '就绪' : '连接中'}<span>·</span>界面原型</span></footer>
 </div>

@@ -5,15 +5,13 @@ use std::os::windows::fs::OpenOptionsExt;
 struct Temporary(PathBuf);
 impl Temporary {
     fn new() -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../target")
             .join(format!(
                 "qa-updater-{}-{}",
                 std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             ));
         fs::create_dir_all(&path).unwrap();
         Self(path)
@@ -23,6 +21,12 @@ impl Drop for Temporary {
     fn drop(&mut self) {
         let _ = clear_directory(&self.0);
     }
+}
+#[test]
+fn concurrent_fixture_directories_are_distinct() {
+    let directories: Vec<_> = (0..32).map(|_| Temporary::new()).collect();
+    let unique: std::collections::BTreeSet<_> = directories.iter().map(|item| &item.0).collect();
+    assert_eq!(unique.len(), directories.len());
 }
 fn fixture(directory: &Path, label: &str) -> Manifest {
     fs::create_dir_all(directory).unwrap();
