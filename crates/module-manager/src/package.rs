@@ -8,7 +8,22 @@ use std::{
     fs,
     io::{self, Read},
     path::Path,
+    time::Duration,
 };
+
+fn download_agent(timeout: Duration) -> ureq::Agent {
+    // Enabling native-tls does not change ureq's Rustls default provider.
+    ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .provider(ureq::tls::TlsProvider::NativeTls)
+                .build(),
+        )
+        .timeout_connect(Some(Duration::from_secs(15)))
+        .timeout_global(Some(timeout))
+        .build()
+        .new_agent()
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -100,7 +115,8 @@ pub fn download_catalog(url: &str, public_key: &[u8]) -> io::Result<Catalog> {
         if !url.starts_with("https://") {
             return Err(invalid("catalog requires HTTPS"));
         }
-        let mut response = ureq::get(url)
+        let mut response = download_agent(Duration::from_secs(30))
+            .get(url)
             .call()
             .map_err(|_| invalid("catalog download failed"))?;
         let mut bytes = Vec::new();
@@ -195,7 +211,8 @@ impl Manager {
             .create_new(true)
             .open(&archive)?;
         let result = (|| {
-            let mut response = ureq::get(&package.url)
+            let mut response = download_agent(Duration::from_secs(300))
+                .get(&package.url)
                 .call()
                 .map_err(|_| invalid("package download failed"))?;
             if io::copy(
@@ -307,6 +324,38 @@ impl Manager {
 mod tests {
     use super::*;
     use ring::signature::{Ed25519KeyPair, KeyPair};
+
+    #[test]
+    fn https_with_untrusted_peer_returns_error_without_panicking() {
+        use std::{io::Write, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(3);
+            while std::time::Instant::now() < deadline {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let _ = stream.write_all(b"HTTP/1.1 200 OK\r\n\r\nnot TLS");
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            false
+        });
+        assert!(
+            download_agent(Duration::from_secs(2))
+                .get(format!("https://{address}/catalog.json"))
+                .config()
+                .proxy(None)
+                .build()
+                .call()
+                .is_err()
+        );
+        assert!(
+            server.join().unwrap(),
+            "HTTPS handshake must reach test peer"
+        );
+    }
 
     #[test]
     fn catalog_authentication_rejects_tampering_and_wrong_signer() {

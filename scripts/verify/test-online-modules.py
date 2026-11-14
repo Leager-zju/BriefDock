@@ -39,7 +39,7 @@ def main():
                 raise RuntimeError(f'{command} rejected: {reply}')
             return reply
 
-        def wait(predicate, timeout=180):
+        def wait(predicate, timeout=600):
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
                 if host.poll() is not None:
@@ -47,6 +47,8 @@ def main():
                 reply = rpc('status', required=False)
                 if reply and reply.get('ok') and predicate(reply['data']):
                     return reply['data']
+                if reply and reply.get('ok') and reply['data']['error']:
+                    raise RuntimeError('host operation failed: ' + str(reply['data']['error']))
                 time.sleep(.2)
             raise RuntimeError('state timeout: ' + str(reply))
 
@@ -62,6 +64,7 @@ def main():
             assert not rpc('modules.install', required=False, id='unknown')['ok']
             for identifier, expected in [('news', {'news'}),
                                          ('hongguo', {'news', 'hongguo', 'python-runtime', 'media-runtime'})]:
+                print('Installing ' + identifier, flush=True)
                 rpc('modules.install', id=identifier)
                 status = wait(lambda value: not value['manager_busy'])
                 assert status['error'] is None, status
