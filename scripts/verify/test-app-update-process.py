@@ -1,4 +1,4 @@
-"""Explicit updater-only process handoff in a temporary install; no real accounts/network."""
+"""Explicit updater-only process handoff in a temporary install; no real accounts."""
 import argparse
 import hashlib
 import json
@@ -15,6 +15,7 @@ ROOT=Path(__file__).resolve().parents[2]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--host-dir',type=Path,required=True)
 parser.add_argument('--report',type=Path,required=True)
+parser.add_argument('--online',action='store_true',help='exercise public feed/download through host check/apply API')
 args=parser.parse_args()
 binaries=args.host_dir.resolve()
 def info(directory):
@@ -26,19 +27,25 @@ def info(directory):
 with tempfile.TemporaryDirectory(prefix='qa-update-process-',dir=ROOT/'target') as temporary:
     root=Path(temporary);install=root/'install';data=root/'data'
     shutil.copytree(binaries,install)
-    key=Ed25519PrivateKey.generate()
-    source=dict(url='https://example.invalid/update.json',public_key=list(key.public_key().public_bytes_raw()))
-    (install/'app-update-source.json').write_text(json.dumps(source),encoding='utf-8')
-    old_info=info(install)
-    stage=root/'stage';shutil.copytree(install,stage)
-    (stage/'README.txt').write_text('same version, replaced test build',encoding='utf-8')
-    new_info=info(stage)
-    assert old_info['version']==new_info['version'] and old_info['build']!=new_info['build']
-    directory=root/'updates'/new_info['build'];directory.mkdir(parents=True)
-    shutil.move(str(stage),str(directory/'stage'))
-    manifest=dict(schema=1,target='windows-x86_64',version='2.0.0',build=new_info['build'],url='https://example.invalid/app.zip',bytes=1,sha256='0'*64,host_sha256=new_info['files']['lazybuddy.exe'])
-    payload=json.dumps(manifest).encode()
-    (directory/'manifest.json').write_bytes(payload);(directory/'manifest.json.sig').write_bytes(key.sign(payload))
+    directory=None
+    if args.online:
+        old_info=info(install)
+        old_info['build']='0'*64
+        (install/'build-info.json').write_text(json.dumps(old_info),encoding='utf-8')
+    else:
+        key=Ed25519PrivateKey.generate()
+        source=dict(url='https://example.invalid/update.json',public_key=list(key.public_key().public_bytes_raw()))
+        (install/'app-update-source.json').write_text(json.dumps(source),encoding='utf-8')
+        old_info=info(install)
+        stage=root/'stage';shutil.copytree(install,stage)
+        (stage/'README.txt').write_text('same version, replaced test build',encoding='utf-8')
+        new_info=info(stage)
+        assert old_info['version']==new_info['version'] and old_info['build']!=new_info['build']
+        directory=root/'updates'/new_info['build'];directory.mkdir(parents=True)
+        shutil.move(str(stage),str(directory/'stage'))
+        manifest=dict(schema=1,target='windows-x86_64',version='2.0.0',build=new_info['build'],url='https://example.invalid/app.zip',bytes=1,sha256='0'*64,host_sha256=new_info['files']['lazybuddy.exe'])
+        payload=json.dumps(manifest).encode()
+        (directory/'manifest.json').write_bytes(payload);(directory/'manifest.json.sig').write_bytes(key.sign(payload))
     data.mkdir();(data/'modules').mkdir();(data/'modules/keep').write_text('module data',encoding='utf-8')
     (data/'preferences.json').write_text(json.dumps(dict(auto_update=False,dark=True)),encoding='utf-8')
     env=dict(os.environ,LAZYBUDDY_INSTANCE='qa-update-'+uuid.uuid4().hex,LAZYBUDDY_DATA_DIR=str(data))
@@ -63,25 +70,39 @@ with tempfile.TemporaryDirectory(prefix='qa-update-process-',dir=ROOT/'target') 
         raise RuntimeError('updater process state timeout')
     try:
         wait(lambda state:state['pid']==old.pid and state['window'] is not None)
-        (directory/'job.json').write_text(json.dumps(dict(install=str(install),parent_pid=old.pid)),encoding='utf-8')
-        shutil.copyfile(binaries/'lazybuddy-updater.exe',directory/'apply.exe')
-        helper=subprocess.Popen([str(directory/'apply.exe'),'--apply',str(directory/'job.json')],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)
-        deadline=time.monotonic()+12
-        while not (directory/'ready').exists():
-            assert helper.poll() is None, 'helper exited before handoff'
-            assert time.monotonic()<deadline, 'helper handoff timeout'
-            time.sleep(.05)
-        assert old.poll() is None
-        assert json.loads((install/'build-info.json').read_text(encoding='utf-8'))['build']==old_info['build']
-        rpc('app.quit');old.wait(timeout=20)
-        helper.wait(timeout=45);assert helper.returncode==0, 'update helper failed'
+        if args.online:
+            rpc('updates.check')
+            offered=wait(lambda state:not state['update_checking'],timeout=1900)
+            assert offered['update_ready'],offered['update_notice']
+            directories=[path for path in (data/'updates').iterdir() if path.is_dir() and len(path.name)==64]
+            assert len(directories)==1
+            directory=directories[0]
+            new_info=json.loads((directory/'stage/build-info.json').read_text(encoding='utf-8'))
+            assert old_info['build']!=new_info['build']
+            rpc('updates.apply')
+            old.wait(timeout=30)
+        else:
+            (directory/'job.json').write_text(json.dumps(dict(install=str(install),parent_pid=old.pid)),encoding='utf-8')
+            shutil.copyfile(binaries/'lazybuddy-updater.exe',directory/'apply.exe')
+            helper=subprocess.Popen([str(directory/'apply.exe'),'--apply',str(directory/'job.json')],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)
+            deadline=time.monotonic()+12
+            while not (directory/'ready').exists():
+                assert helper.poll() is None, 'helper exited before handoff'
+                assert time.monotonic()<deadline, 'helper handoff timeout'
+                time.sleep(.05)
+            assert old.poll() is None
+            assert json.loads((install/'build-info.json').read_text(encoding='utf-8'))['build']==old_info['build']
+            rpc('app.quit');old.wait(timeout=20)
+            helper.wait(timeout=45);assert helper.returncode==0, 'update helper failed'
         state=wait(lambda state:state['pid']!=old.pid and not state['hidden'])
         assert json.loads((install/'build-info.json').read_text(encoding='utf-8'))['build']==new_info['build']
         assert (data/'modules/keep').read_text(encoding='utf-8')=='module data'
         preferences=json.loads((data/'preferences.json').read_text(encoding='utf-8'))
         assert preferences['dark'] is True and preferences['auto_update'] is False
+        deadline=time.monotonic()+10
+        while (directory/'stage').exists() and time.monotonic()<deadline:time.sleep(.1)
         assert not (directory/'stage').exists() and not (directory/'backup').exists()
-        report=dict(passed=True,waited_for_normal_exit=True,same_version_build_changed=True,restarted_pid_changed=True,user_data_preserved=True,staging_cleaned=True,real_account_tested=False,network_used=False)
+        report=dict(passed=True,waited_for_normal_exit=True,same_version_build_changed=old_info['version']==new_info['version'] and old_info['build']!=new_info['build'],restarted_pid_changed=True,user_data_preserved=True,staging_cleaned=True,real_account_tested=False,network_used=args.online)
     finally:
         if rpc('status',required=False):rpc('app.quit')
         if old.poll() is None:old.wait(timeout=20)
@@ -91,6 +112,20 @@ with tempfile.TemporaryDirectory(prefix='qa-update-process-',dir=ROOT/'target') 
         if rpc('status',required=False):rpc('app.quit',required=False)
         deadline=time.monotonic()+10
         while rpc('status',required=False) and time.monotonic()<deadline:time.sleep(.1)
+        if directory and (directory/'apply.lock').exists():
+            import ctypes
+            from ctypes import wintypes
+            kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+            kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+            kernel.CreateFileW.restype=wintypes.HANDLE
+            kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+            deadline=time.monotonic()+40
+            while time.monotonic()<deadline:
+                handle=kernel.CreateFileW(str(directory/'apply.lock'),0x80000000,0,None,3,0,None)
+                if handle!=ctypes.c_void_p(-1).value:
+                    kernel.CloseHandle(handle);break
+                time.sleep(.1)
+            time.sleep(.2)
 
 args.report.parent.mkdir(parents=True,exist_ok=True)
 args.report.write_text(json.dumps(report,indent=2),encoding="utf-8")
