@@ -8,6 +8,7 @@ edition = "2024"
 find-msvc-tools = "=0.1.15"
 
 [dependencies]
+lazybuddy-app-updater = { path = "../../crates/app-updater" }
 iced = { version = "0.14", default-features = false, features = ["wgpu", "tokio", "image-without-codecs"] }
 lazybuddy-module-contract = { path = "../../crates/module-contract" }
 lazybuddy-module-manager = { path = "../../crates/module-manager" }

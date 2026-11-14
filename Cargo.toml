@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/module-contract", "crates/module-manager", "crates/service-client", "crates/media-ipc", "crates/host-control", "apps/cli", "apps/desktop"]
+members = ["crates/module-contract", "crates/module-manager", "crates/service-client", "crates/media-ipc", "crates/host-control", "apps/cli", "apps/desktop", "crates/app-updater"]
 default-members = ["apps/desktop", "apps/cli"]
 
 [patch.crates-io]

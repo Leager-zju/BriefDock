@@ -125,12 +125,19 @@ impl Catalog {
 }
 
 pub fn download_catalog(url: &str, public_key: &[u8]) -> io::Result<Catalog> {
+    let (bytes, signature) = download_signed_payload(url, public_key)?;
+    verify_catalog(&bytes, &signature, public_key)
+}
+
+/// Shared authenticated transport for module catalogs and application manifests.
+pub fn download_signed_payload(url: &str, public_key: &[u8]) -> io::Result<(Vec<u8>, Vec<u8>)> {
     fn read(url: &str, limit: u64) -> io::Result<Vec<u8>> {
         if !url.starts_with("https://") {
             return Err(invalid("catalog requires HTTPS"));
         }
         let mut response = download_agent(Duration::from_secs(30))
             .get(url)
+            .header("Cache-Control", "no-cache")
             .call()
             .map_err(|error| download_error("catalog", error))?;
         let mut bytes = Vec::new();
@@ -146,7 +153,40 @@ pub fn download_catalog(url: &str, public_key: &[u8]) -> io::Result<Catalog> {
     }
     let bytes = read(url, 1024 * 1024)?;
     let signature = read(&format!("{url}.sig"), 64)?;
-    verify_catalog(&bytes, &signature, public_key)
+    UnparsedPublicKey::new(&ED25519, public_key)
+        .verify(&bytes, &signature)
+        .map_err(|_| invalid("signature invalid"))?;
+    Ok((bytes, signature))
+}
+
+/// Download a bounded archive. Consumers verify its signed digest before unpacking.
+pub fn download_archive(url: &str, destination: &Path, bytes: u64) -> io::Result<()> {
+    if !url.starts_with("https://") || bytes == 0 || bytes > 1024 * 1024 * 1024 {
+        return Err(invalid("invalid archive download"));
+    }
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)?;
+    let result = (|| {
+        let mut response = download_agent(Duration::from_secs(1800))
+            .get(url)
+            .call()
+            .map_err(|error| download_error("archive", error))?;
+        if io::copy(
+            &mut response.body_mut().as_reader().take(bytes + 1),
+            &mut file,
+        )? != bytes
+        {
+            return Err(invalid("archive download incomplete"));
+        }
+        file.sync_all()
+    })();
+    drop(file);
+    if result.is_err() {
+        let _ = fs::remove_file(destination);
+    }
+    result
 }
 
 pub fn verify_catalog(bytes: &[u8], signature: &[u8], public_key: &[u8]) -> io::Result<Catalog> {
@@ -220,24 +260,8 @@ impl Manager {
         }
         fs::create_dir_all(self.root())?;
         let archive = self.root().join(format!(".download-{}.zip", package.id));
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&archive)?;
         let result = (|| {
-            let mut response = download_agent(Duration::from_secs(1800))
-                .get(&package.url)
-                .call()
-                .map_err(|error| download_error(&package.id, error))?;
-            if io::copy(
-                &mut response.body_mut().as_reader().take(package.bytes + 1),
-                &mut file,
-            )? != package.bytes
-            {
-                return Err(invalid("package download incomplete"));
-            }
-            file.sync_all()?;
-            drop(file);
+            download_archive(&package.url, &archive, package.bytes)?;
             self.unpack_verified(&archive, package)
         })();
         let _ = fs::remove_file(&archive);
@@ -338,6 +362,24 @@ impl Manager {
 mod tests {
     use super::*;
     use ring::signature::{Ed25519KeyPair, KeyPair};
+    #[test]
+    fn existing_archive_target_is_preserved_without_network() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target")
+            .join(format!(
+                "qa-download-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        fs::create_dir_all(&directory).unwrap();
+        let archive = directory.join("existing.zip");
+        fs::write(&archive, b"keep").unwrap();
+        assert!(download_archive("https://example.invalid/app.zip", &archive, 4).is_err());
+        assert_eq!(fs::read(&archive).unwrap(), b"keep");
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn download_failures_identify_package_without_leaking_proxy_details() {

@@ -8,14 +8,14 @@
 
 ## 下载使用
 
-下载 [Windows x64 预览版](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/v2.0.0-preview.1)，解压后运行 `lazybuddy.exe`。在顶部「功能」中安装新闻或红果，再从「选择功能」进入；红果的两个运行时自动安装。不使用的功能可直接卸载。保留 EXE 同目录的 `module-catalog.json`，无需安装 Python、Go 或 GStreamer。
+下载 [Windows x64 预览版](https://github.com/LazyBuddyDev/LazyBuddy/releases/tag/v2.0.0-preview.1)，解压后运行 `lazybuddy.exe`。在顶部「功能」中安装新闻或红果，再从「选择功能」进入；红果的两个运行时自动安装。不使用的功能可直接卸载。保留 EXE 同目录的可信源配置，无需安装 Python、Go 或 GStreamer。启动后自动检查并准备应用更新，点击「重启更新」即可应用；测试包即使版本号相同也能识别覆盖更新，见[应用更新](docs/app-updates.md)。
 
 ## 本地开发
 
 需要 Windows x64、Rust/MSVC 工具链和 Windows SDK。首次获取 Cargo 依赖后：
 
 ```powershell
-cargo build --locked -p lazybuddy -p lazybuddy-cli
+cargo build --locked -p lazybuddy -p lazybuddy-cli -p lazybuddy-app-updater
 .\build_and_run.bat
 ```
 

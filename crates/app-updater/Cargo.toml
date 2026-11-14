@@ -1,0 +1,22 @@
+[package]
+name = "lazybuddy-app-updater"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[[bin]]
+name = "lazybuddy-updater"
+path = "src/main.rs"
+
+[dependencies]
+lazybuddy-module-manager = { path = "../module-manager" }
+lazybuddy-host-control = { path = "../host-control" }
+lazybuddy-module-contract = { path = "../module-contract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+ring = "0.17"
+zip = { version = "8.6", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }

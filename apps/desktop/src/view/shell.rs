@@ -173,6 +173,9 @@ pub(super) fn modules(app: &App) -> Element<'_, Message> {
 
 fn status_text(app: &App) -> String {
     let mut messages = Vec::new();
+    if !app.updater.notice.is_empty() {
+        messages.push(app.updater.notice.as_str());
+    }
     if let Some(error) = &app.error {
         messages.push(error.as_str());
     }
@@ -240,22 +243,30 @@ pub(super) fn frame<'a>(
     .on_press(Message::Drag)
     .interaction(iced::mouse::Interaction::Grab);
     let page = container(page).padding(20).width(Fill).height(Fill);
-    let status = container(
-        text(status_text(app))
-            .size(12)
-            .color(if app.error.is_some() {
-                if app.theme().palette().background.r < 0.5 {
-                    iced::Color::from_rgb8(255, 160, 150)
+    let mut information =
+        row![
+            text(status_text(app))
+                .size(12)
+                .width(Fill)
+                .color(if app.error.is_some() {
+                    if app.theme().palette().background.r < 0.5 {
+                        iced::Color::from_rgb8(255, 160, 150)
+                    } else {
+                        iced::Color::from_rgb8(170, 35, 35)
+                    }
                 } else {
-                    iced::Color::from_rgb8(170, 35, 35)
-                }
-            } else {
-                app.theme().palette().text
-            }),
-    )
-    .padding([8, 20])
-    .width(Fill)
-    .style(move |theme| chrome(theme, opacity, true));
+                    app.theme().palette().text
+                })
+        ]
+        .spacing(12)
+        .align_y(iced::Center);
+    if app.updater.can_apply() {
+        information = information.push(button("重启更新").on_press(Message::ApplyUpdate));
+    }
+    let status = container(information)
+        .padding([8, 20])
+        .width(Fill)
+        .style(move |theme| chrome(theme, opacity, true));
     container(
         column![
             toolbar,

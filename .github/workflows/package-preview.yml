@@ -29,7 +29,7 @@ jobs:
       - name: Build base host
         shell: pwsh
         run: |
-          cargo build --release --locked -p lazybuddy -p lazybuddy-cli
+          cargo build --release --locked -p lazybuddy -p lazybuddy-cli -p lazybuddy-app-updater
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -B scripts/package_base.py --output target/base
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -41,3 +41,4 @@ jobs:
           path: |
             target/base/*.zip
             target/base/package.json
+            target/base/app-update.json

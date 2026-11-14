@@ -5,17 +5,12 @@ fn main() {
         println!("cargo:rerun-if-changed={}", assets.join(name).display());
     }
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let catalog = assets.parent().unwrap().join("module-catalog.json");
-    println!("cargo:rerun-if-changed={}", catalog.display());
-    fs::copy(
-        catalog,
-        output
-            .ancestors()
-            .nth(3)
-            .unwrap()
-            .join("module-catalog.json"),
-    )
-    .expect("copy trusted catalog configuration beside host");
+    for name in ["module-catalog.json", "app-update-source.json"] {
+        let source = assets.parent().unwrap().join(name);
+        println!("cargo:rerun-if-changed={}", source.display());
+        fs::copy(source, output.ancestors().nth(3).unwrap().join(name))
+            .expect("copy trusted distribution source beside host");
+    }
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     let numeric = version.replace('.', ",") + ",0";
     let definition = format!(

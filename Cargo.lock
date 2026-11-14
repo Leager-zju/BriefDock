@@ -1627,6 +1627,7 @@ dependencies = [
  "futures",
  "iced",
  "image",
+ "lazybuddy-app-updater",
  "lazybuddy-host-control",
  "lazybuddy-media-ipc",
  "lazybuddy-module-contract",
@@ -1638,6 +1639,21 @@ dependencies = [
  "serde_json",
  "tray-icon",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "lazybuddy-app-updater"
+version = "0.1.0"
+dependencies = [
+ "lazybuddy-host-control",
+ "lazybuddy-module-contract",
+ "lazybuddy-module-manager",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2",
+ "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]

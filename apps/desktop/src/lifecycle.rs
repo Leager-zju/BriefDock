@@ -298,6 +298,13 @@ impl App {
     }
     pub(super) fn subscription(&self) -> Subscription<Message> {
         let global = Subscription::batch([
+            if self.preferences.auto_update && !lazybuddy_host_control::isolated() && !self.quitting
+            {
+                iced::time::every(std::time::Duration::from_secs(15 * 60))
+                    .map(|_| Message::CheckUpdate)
+            } else {
+                Subscription::none()
+            },
             iced::event::listen_with(|event, status, _| match event {
                 iced::Event::Keyboard(event) => Some(Message::Keyboard(event, status)),
                 iced::Event::Window(iced::window::Event::Unfocused) => Some(Message::Blur),

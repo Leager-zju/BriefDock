@@ -52,7 +52,7 @@ try {
         }
     }
     Write-Host 'Building the LazyBuddy base host (no media SDK required)...'
-    & cargo build --locked --offline -p lazybuddy
+    & cargo build --locked --offline -p lazybuddy -p lazybuddy-app-updater --bin lazybuddy --bin lazybuddy-updater
     if ($LASTEXITCODE -ne 0) { throw 'Host build failed; no old binary will be launched.' }
     if ($BuildOnly) { Write-Host 'LazyBuddy build complete.'; exit 0 }
     $started = Start-Process -FilePath $application -ArgumentList '--background' -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru

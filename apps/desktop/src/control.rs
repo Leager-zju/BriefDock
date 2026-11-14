@@ -102,7 +102,7 @@ impl App {
                 value
             });
             call.reply(json!({"ok":true,"data":{"pid":std::process::id(),"exe":std::env::current_exe().ok(),"capsule":self.capsule,"window":self.desktop.as_ref().and_then(|desktop|desktop.bounds()),"root":self.selected.as_ref().map(|root|&root.id),"section":format!("{:?}",self.section),"hidden":self.hidden,"busy":self.busy,"method":self.current_method,"error":self.error,
-                "modules":self.installed,"manager_busy":self.manager_busy,"available_modules":self.catalog.as_ref().map(|catalog|catalog.packages.iter().filter(|package|package.kind==Kind::Feature).map(|package|package.id.clone()).collect::<Vec<_>>()),"service_active":self.session.is_some(),"news_sources":page.map(|page|page.catalog.len()),"results":page.map(|page|page.cards.len()),"query":page.map(|page|&page.query),"account_operation":page.map(|page|page.account["operation"].clone()),"favorite_pending":page.is_some_and(|page|page.favorite_override.is_some()),"favorite":page.is_some_and(|page|page.favorites.iter().any(|row|row["id"]==page.media["series"])),"account_state":page.map(|page|page.account["state"].clone()),"qr_present":page.is_some_and(|page|page.login_qr.is_some()),"media":media}}));
+                "update_checking":self.updater.checking,"update_ready":self.updater.prepared.is_some(),"update_applying":self.updater.applying,"update_notice":self.updater.notice,"modules":self.installed,"manager_busy":self.manager_busy,"available_modules":self.catalog.as_ref().map(|catalog|catalog.packages.iter().filter(|package|package.kind==Kind::Feature).map(|package|package.id.clone()).collect::<Vec<_>>()),"service_active":self.session.is_some(),"news_sources":page.map(|page|page.catalog.len()),"results":page.map(|page|page.cards.len()),"query":page.map(|page|&page.query),"account_operation":page.map(|page|page.account["operation"].clone()),"favorite_pending":page.is_some_and(|page|page.favorite_override.is_some()),"favorite":page.is_some_and(|page|page.favorites.iter().any(|row|row["id"]==page.media["series"])),"account_state":page.map(|page|page.account["state"].clone()),"qr_present":page.is_some_and(|page|page.login_qr.is_some()),"media":media}}));
             return Task::none();
         }
         let args = &request.args;
@@ -172,6 +172,8 @@ impl App {
             }
             .map(|category| Message::Navigate(Section::Settings(category))),
             "settings.back" => Some(Message::Navigate(Section::Content)),
+            "updates.check" => Some(Message::CheckUpdate),
+            "updates.apply" => Some(Message::ApplyUpdate),
             "modules.open" => Some(Message::Navigate(Section::Modules)),
             "modules.toggle" => Some(Message::ToggleModules),
             "modules.refresh" => Some(Message::Reload),

@@ -4,6 +4,8 @@ use std::{collections::BTreeMap, fs, io, path::Path};
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Preferences {
+    #[serde(default = "enabled")]
+    pub auto_update: bool,
     pub window: Option<[i32; 4]>,
     pub shortcut: super::shortcut::Shortcut,
     pub dark: bool,
@@ -25,6 +27,7 @@ fn default_opacity() -> f32 {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            auto_update: true,
             window: None,
             shortcut: Default::default(),
             dark: false,
@@ -157,6 +160,13 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn automatic_updates_default_on_for_existing_settings_and_keep_explicit_opt_out() {
+        let old: Preferences = serde_json::from_str(r#"{"dark":true}"#).unwrap();
+        assert!(old.auto_update && old.dark);
+        let disabled: Preferences = serde_json::from_str(r#"{"auto_update":false}"#).unwrap();
+        assert!(!disabled.auto_update);
+    }
     #[test]
     fn malformed_settings_are_not_replaced_with_defaults() {
         let directory = Path::new(env!("CARGO_MANIFEST_DIR"))

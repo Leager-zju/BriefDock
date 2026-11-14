@@ -96,6 +96,19 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
                 .into(),
                 Settings::System => column![
                     text("系统设置").size(24),
+                    checkbox(app.preferences.auto_update)
+                        .label("自动检查并下载应用更新")
+                        .on_toggle(Message::AutoUpdate),
+                    row![
+                        button("检查应用更新").on_press_maybe(
+                            (!app.updater.checking && !app.updater.applying)
+                                .then_some(Message::CheckUpdate)
+                        ),
+                        button("重启更新").on_press_maybe(
+                            app.updater.can_apply().then_some(Message::ApplyUpdate)
+                        )
+                    ]
+                    .spacing(8),
                     checkbox(app.autostart)
                         .label("开机启动（后台待命）")
                         .on_toggle_maybe(

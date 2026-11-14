@@ -5,7 +5,7 @@
 ## 基础构建
 
 ```powershell
-cargo build --locked -p lazybuddy -p lazybuddy-cli
+cargo build --locked -p lazybuddy -p lazybuddy-cli -p lazybuddy-app-updater
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-and-run.ps1 -BuildOnly
 ```
 
@@ -80,3 +80,5 @@ python -B scripts/assemble-catalog.py --packages <新闻ZIP> <红果ZIP> <Python
 云端Windows检查自动运行定向协议和空宿主验证；Windows打包工作流仅手动触发，自有LICENSE缺失时拒绝上传分发产物。预览模块通过 `modules-v0.1.0` 发布，主程序通过 `v2.0.0-preview.1` 发布；不把未签名开发目录作为线上可信源。发布与本地构建是独立动作。
 
 `modules.install/uninstall/refresh` 只在当前可见「功能」页且管理器空闲时接受，与GUI共用后台任务；`status` 的 `manager_busy/modules/available_modules/error` 用于核对完成，accepted不代表成功。
+
+应用启动及每15分钟自动检查并准备更新，底部或系统设置点击「重启更新」后替换并重新启动；支持同版本测试包覆盖。`updates.check`、`updates.apply`与GUI共用入口，`status`包含update_checking/update_ready/update_applying/update_notice。更新源、签名及维护流程见[应用更新](app-updates.md)。

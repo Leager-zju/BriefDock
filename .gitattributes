@@ -1,3 +1,4 @@
 # Catalog signatures cover exact bytes; Git must not normalize their line endings.
 /docs/modules/catalog.json -text
+/docs/updates/*.json -text
 *.sig -text

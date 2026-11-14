@@ -11,6 +11,7 @@ mod results;
 mod shortcut;
 mod startup;
 mod state;
+mod updater;
 mod view;
 
 use iced::{Element, Subscription, Task};
@@ -34,6 +35,11 @@ impl std::fmt::Display for Root {
 
 #[derive(Clone, Debug)]
 enum Message {
+    CheckUpdate,
+    AutoUpdate(bool),
+    ApplyUpdate,
+    UpdateChecked(Result<Option<lazybuddy_app_updater::Prepared>, String>),
+    UpdateStarted(Result<(), String>),
     ControlsHover(bool),
     ControlsMenu(bool),
     Keyboard(iced::keyboard::Event, iced::event::Status),
@@ -108,6 +114,7 @@ enum Message {
 }
 
 struct App {
+    updater: updater::State,
     manager: Manager,
     modules: Vec<Manifest>,
     roots: Vec<Root>,
@@ -175,6 +182,7 @@ impl App {
         };
         let preferences_writer = preferences::Writer::new(preferences_path);
         let mut app = Self {
+            updater: updater::State::new(root.join("updates")),
             manager,
             modules: vec![],
             roots: vec![],
@@ -235,6 +243,20 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::CheckUpdate => return self.check_updates(),
+            Message::AutoUpdate(enabled) => {
+                self.preferences.auto_update = enabled;
+                return self.save();
+            }
+            Message::ApplyUpdate => return self.apply_update(),
+            Message::UpdateChecked(result) => self.updater.complete(result),
+            Message::UpdateStarted(result) => match result {
+                Ok(()) => return self.update(Message::Quit),
+                Err(error) => {
+                    self.updater.applying = false;
+                    self.updater.notice = error;
+                }
+            },
             Message::ControlsHover(hover) => {
                 if let Some(root) = &self.selected {
                     let page = self.pages.get_mut(&root.id).unwrap();
@@ -350,7 +372,12 @@ impl App {
                 if control::start().is_err() {
                     self.error = Some("本地控制接口启动失败。".into());
                 }
-                return iced::window::latest().map(Message::Window);
+                let check = if self.preferences.auto_update && !lazybuddy_host_control::isolated() {
+                    self.check_updates()
+                } else {
+                    Task::none()
+                };
+                return Task::batch([iced::window::latest().map(Message::Window), check]);
             }
             Message::Rpc(call) => return self.rpc(call),
             Message::Window(Some(id)) => {
