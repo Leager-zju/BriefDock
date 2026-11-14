@@ -24,6 +24,8 @@ Server核对Host、随机路径和唯一允许Origin，提供CORS、GET/HEAD/单
 
 真实网络手动验收入口（在项目根目录执行）：
 
+已有本机预览构建时，可双击根目录start_preview.bat直接启动真实服务模式，不编译、不下载依赖。测试退出代理后的行为时，先从托盘菜单退出旧预览，再手动退出代理软件并关闭TUN，最后运行该BAT。BAT只清除本次子进程继承的HTTP_PROXY/HTTPS_PROXY/ALL_PROXY，不修改Windows系统代理或代理软件；无法由此保证系统代理/TUN已关闭。沿用既有预览凭据及数据。
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-shell-prototype.ps1 -ServicePackages .\target\service-exports\lazybuddy-hongguo-service\target\packages-browser-current
 ```

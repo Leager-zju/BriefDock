@@ -1,5 +1,6 @@
-param([switch]$BuildOnly,[string]$ServicePackages,[switch]$Release)
+param([switch]$BuildOnly,[string]$ServicePackages,[switch]$Release,[switch]$LaunchOnly)
 $ErrorActionPreference='Stop'
+if($BuildOnly -and $LaunchOnly){throw 'BuildOnly and LaunchOnly cannot be combined.'}
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $prototype=Join-Path $projectRoot 'apps/shell-prototype'
 $output=Join-Path $projectRoot 'target/qa-browser-video'
@@ -12,8 +13,10 @@ if($ServicePackages){
         if($manifest.id -ne $id -or !(Test-Path -LiteralPath (Join-Path $ServicePackages "$id/$($manifest.entrypoint)"))){throw "Invalid service package: $id"}
     }
 }
-if(Get-Process -Name lazybuddy-shell-prototype -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $executable }) {throw 'Please exit this prototype from its tray menu before rebuilding it; X only hides the window.'}
+if(Get-Process -Name lazybuddy-shell-prototype -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $executable }) {throw 'Please exit this prototype from its tray menu first; X only hides the window.'}
+if($LaunchOnly -and !(Test-Path -LiteralPath $executable)){throw 'Preview executable missing. Run this script without -LaunchOnly to build it first.'}
 $sdk=Join-Path $projectRoot 'target/native-player-sdk/PFiles64/gstreamer/1.0/msvc_x86_64'
+if(!$LaunchOnly){
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 Push-Location $prototype
 try {
@@ -34,6 +37,7 @@ try {
         if($LASTEXITCODE){ throw 'Prototype native build failed' }
     } finally { $env:CARGO_TARGET_DIR=$previousTarget }
 } finally { Pop-Location }
+}
 $clip=Join-Path $output 'sample.mp4'
 if (!$ServicePackages -and !(Test-Path -LiteralPath $clip)) {
     $gst=Join-Path $sdk 'bin/gst-launch-1.0.exe'
@@ -65,7 +69,7 @@ if (!$BuildOnly) {
         $env:LAZYBUDDY_BROWSER_FIXTURE_FILE=$null
         $env:LAZYBUDDY_PROTOTYPE_PROBE=$null
         Start-Process -FilePath $executable -NoNewWindow
-        Write-Host 'Build complete. In LazyBuddy, select Hongguo and click Login.'
+        Write-Host 'Preview started. Select Hongguo; your saved preview login is retained.'
     } finally {
         $env:LAZYBUDDY_PROTOTYPE_CLIP=$savedClip;$env:LAZYBUDDY_BROWSER_PACKAGES=$savedPackages
         $env:LAZYBUDDY_BROWSER_FIXTURE_FILE=$savedFixture;$env:LAZYBUDDY_PROTOTYPE_PROBE=$savedProbe
