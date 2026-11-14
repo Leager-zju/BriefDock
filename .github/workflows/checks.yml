@@ -3,9 +3,9 @@ name: LazyBuddy checks
 on:
   push:
     branches: [main, 'codex/lazybuddy-*']
-    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', '.github/workflows/checks.yml']
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', 'docs/modules/**', '.gitattributes', '.github/workflows/checks.yml']
   pull_request:
-    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', '.github/workflows/checks.yml']
+    paths: ['apps/**', 'crates/**', 'contracts/**', 'scripts/**', 'assets/**', 'vendor/**', 'Cargo.toml', 'Cargo.lock', 'module-catalog.json', 'docs/modules/**', '.gitattributes', '.github/workflows/checks.yml']
   workflow_dispatch:
 
 permissions:
