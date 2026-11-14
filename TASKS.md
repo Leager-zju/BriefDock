@@ -55,6 +55,7 @@
 - `[x]` 按用户确认的新方向改造服务的浏览器媒体资源输出，接入真实业务播放入口，并确认格式兼容、生命周期及资源预算；原生纹理实验保留独立分支，不合入默认路线。
 - `[√]` 服务新增playback会话API，受控Range MP4/CORS/会话隔离；宿主通过独立服务包给HTML video供源，隐藏停止读取、恢复暂停、设置释放。hongguo0.2.0候选去掉media-runtime强依赖，真实包health与合成WebView闭环通过，尚未发布。
 - 2026-11-14 浏览器路线：服务37项受影响单元、原型新增Rust白名单单元通过；H.264/H.265-AAC合成资源在Edge157实际解码，暂停seek帧mediaTime3.1s，隐藏资源409/前端src卸载，恢复3.1s不自播，设置使旧URL失效，正常退出。证据target/verification-browser-video；外部样例包仅Python依赖，正式候选包target/service-exports/lazybuddy-hongguo-service/target/packages-browser-current，入口health通过，无GStreamer目录。无真实账号/节目或音画同步结论；样例搜索/收藏及固定剧ID尚未替换为完整业务UI，不提前归档。
+- 代码与CI：宿主e0e950d、服务554ab6a已推送两个仓库同名codex/lazybuddy-browser-video；宿主CI43587778472两作业、服务CI43587786151均成功。原生实验6a7d88a/a1e665d也已同步独立分支备查；旧原生候选包及专用编译产物已清理，当前浏览器候选、SDK、服务Git与精简证据保留。未合并主线、发布包或覆盖用户入口。
 - 2026-11-14 原生呈现：分支codex/lazybuddy-native-web-video，复用已发布media-runtime/python-runtime包，不复制服务实现。H.264 1280×720及H.265/AAC 640×360的原生纹理显示、0/0.5/1预乘RGBA、GUI暂停/倍速、跳转后继续、缩放不重开源、圆形贴边暂停、展开不自播、设置释放原PID、返回暂停、真实EOS通过；PrintWindow整窗截图已查看，证据target/verification-native-video/h264.json、h265-aac.json及对应PNG。只用合成媒体，AAC静音，无真实账号/节目或音画同步结论。
 - 实现边界：修正先建D3D12导入设备后再开原生调试层导致的设备失效；IPC时钟明确为系统呈现时间，不当作媒体进度。当前1.26.11 IPC只发送render帧，暂停seek完成后仍显示最后帧，继续才刷新；该项继续未完成，技术说明和复现入口见docs/shell-design-evaluation.md。生产宿主及当前用户原型未替换，不发布更新。
 - 后续证据与方向：独立服务分支codex/lazybuddy-paused-video增加公开GType/GstBaseSink子类，补暂停preroll及初始时钟前提，候选media-runtime0.1.1实际显示暂停跳转的3秒绿帧（初始红帧），不改变播放/静音；5项媒体协议单元通过。最后新增的EOS后重播回归仍超时，未标为通过，未执行后续H.265候选重验。用户随后确认服务输出浏览器资源的方向；原生实验不作为默认实现推进，接下来从现有私有Range MP4层提供受控会话，浏览器负责解码及同步，不提前宣称真实输入兼容。

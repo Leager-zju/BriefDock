@@ -22,6 +22,8 @@ Server核对Host、随机路径和唯一允许Origin，提供CORS、GET/HEAD/单
 
 原型仍使用样例搜索/收藏和固定样例剧ID，不伪装已接入真实业务。只有显式LAZYBUDDY_BROWSER_PACKAGES包目录才开启服务资源模式，默认入口仍为原浏览器离线样例。开发样例入口由红果服务仓库自己的scripts/verify/stage-browser-fixture.py组装，不放入正式包；宿主只读清单/调用子进程API，不跨仓库导入实现。服务契约与命令见独立服务docs/browser-playback.md。验证脚本为apps/shell-prototype/tests/browser-media.mjs，证据target/verification-browser-video/h264.json及h265-aac.json和截图。
 
+复现时先在独立服务仓库构建包，再用其stage-browser-fixture.py的--runtime-packages显式选择生成包目录。原型侧设置LAZYBUDDY_BROWSER_PACKAGES为样例包目录、LAZYBUDDY_BROWSER_FIXTURE_FILE为至少4秒且不超过8MB的自制合成MP4；构建后运行`node apps/shell-prototype/tests/browser-media.mjs <候选exe绝对路径>`。驱动只关闭自身实例和临时WebView配置；固定样例入口不放进正式服务包。代码CI：宿主e0e950d运行43587778472、服务554ab6a运行43587786151均成功。源码仅在独立分支，不通过更新源覆盖生产。
+
 ## 历史原生视频实验（独立分支）
 
 以下实现及原生命令只对应codex/lazybuddy-native-web-video（6a7d88a），不适用于当前浏览器路线分支。服务暂停帧实验在codex/lazybuddy-paused-video（a1e665d）。初轮暂停preroll缺口后来在服务子类中补齐并以红→绿实际像素验证；最后新增的EOS后重播回归仍超时，未宣称完整原生播放器交付。这些实验不发布为默认模块。
